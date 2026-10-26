@@ -1,8 +1,8 @@
 # Repositório git privado
 
-Status: ready-for-agent
+Status: claimed
 Blocked by: -
 
-`git init`; `.gitignore` acrescenta `data/` inteiro, `storage_state.json` e `.env`. Commit inicial com código, testes, docs e `.scratch/`. O usuário cria o repositório privado no GitHub e o agente configura o remote e dá o push.
+`git init -b main` e commit inicial (`1c689a0`) feitos; `.gitignore` cobre `data/`, `storage_state.json` e `.env`. Falta criar o repositório privado no GitHub e dar o push (aguardando confirmação do usuário).
 
-Critério: `git ls-files` não lista nada de `data/` nem `storage_state.json`.
+Critério: repo privado no GitHub com o código e sem nada de `data/` nem segredos.

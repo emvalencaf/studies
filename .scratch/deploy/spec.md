@@ -1,6 +1,6 @@
 # Deploy: app acessível do celular com custo R$ 0
 
-Vocabulário em `GLOSSARY.md`. Decisão de hospedagem e dados em `docs/adr/0002-oracle-vm-sqlite-source-of-truth.md`.
+Vocabulário em `GLOSSARY.md`. Decisão de hospedagem e dados em `docs/adr/0002-community-cloud-turso.md`. A VM Oracle foi tentada e descartada (cadastro recusado).
 
 ## Objetivo
 
@@ -8,15 +8,17 @@ Estudar (Estudar + Dashboard) de qualquer lugar, inclusive do celular, com o PC 
 
 ## Decisões
 
-- **Hospedagem:** VM Oracle Always Free. ARM A1 primeiro, AMD Micro com swap como fallback. Plano B se a Oracle falhar de vez: PaaS grátis com Turso (libSQL) no lugar do SQLite.
-- **Acesso:** URL pública com HTTPS (subdomínio DuckDNS + Caddy/Let's Encrypt) e `st.login` do Google, liberado só para o e-mail do usuário. Plano B de acesso: Tailscale. No celular, "Adicionar à tela inicial" (PWA); sem app nativo e sem modo offline.
-- **Dados:** a VM é a única fonte da verdade do `studies.db`. O banco local sobe uma vez e o app local deixa de ser usado para estudar. Scrape continua no PC; `raw/` e `certification.json` sobem por rsync e o `load` roda na VM.
-- **Backup:** cron diário na VM roda `studies.backup` e envia ao Google Drive com `rclone`, mantendo os 10 mais recentes. O aviso na UI passa a olhar esse backup.
-- **Código:** `git init`, repositório privado no GitHub; `data/` e `storage_state.json` fora do git. Deploy = `git pull` + restart do serviço systemd.
+- **App:** Streamlit Community Cloud, a partir do repositório privado no GitHub. Sem cartão.
+- **Banco:** Turso (libSQL), no lugar do `studies.db` local. `db.connect` escolhe o backend: SQLite local por padrão (testes, uso offline) e Turso quando as credenciais estão no ambiente/secrets.
+- **Acesso:** app privado do Community Cloud, com convite só para o e-mail do usuário. Plano B de acesso: app público com `st.login` do Google restrito ao e-mail. No celular, "Adicionar à tela inicial" (PWA); sem app nativo e sem offline.
+- **Dados:** o Turso é a única fonte da verdade. O `studies.db` local sobe uma vez e o app local deixa de ser usado para estudar. Scrape e `load` rodam no PC e o `load` grava direto no Turso.
+- **Dependências:** `playwright` sai das dependências do app (vira extra `scrape`), para o Community Cloud não instalar o que só o scraper usa.
+- **Backup:** exportação do Turso para o Google Drive. GitHub Actions diário, com secrets no repo privado (issue 05).
 - **Mobile:** layout ajustado depois do deploy, como issues separadas.
 
 ## Riscos conhecidos
 
-- Cota A1 free reduzida em 2026 e falta frequente de capacidade; confirmar na página oficial da Oracle.
-- VM ociosa (CPU, rede e memória < 20% por 7 dias) pode ser recuperada; o backup no Drive cobre.
-- Conteúdo da Udemy é de terceiros: repo privado, `raw/` fora do git, login obrigatório.
+- O cliente `libsql` pode não ser 100% compatível com `row_factory`, `executescript` e `pandas.read_sql_query`; a issue 02 é um teste antes de mexer no app.
+- Latência de rede por consulta: o Dashboard roda várias; medir na issue 02.
+- Limites dos free tiers (Turso, Community Cloud, 1 app privado) vêm de fontes de terceiros; confirmar nas páginas oficiais.
+- Conteúdo da Udemy é de terceiros: repo privado, `data/` fora do git, app privado.

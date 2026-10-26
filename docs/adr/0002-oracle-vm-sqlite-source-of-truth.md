@@ -1,5 +1,0 @@
-# App hospedado numa VM Oracle Always Free, com o SQLite lá como fonte da verdade
-
-Para acessar o app do celular com custo R$ 0 e com o PC desligado, o app Streamlit roda numa VM Oracle Always Free (ARM A1, com a AMD Micro como fallback), e o `studies.db` passa a viver só nela. Alternativas descartadas: Streamlit Community Cloud e Hugging Face Spaces (disco efêmero, perderiam o histórico de Attempts, que não dá para regerar), banco gerenciado externo como Turso ou Neon (exigiria trocar a camada `sqlite3`; fica como plano B se a Oracle falhar), Google Drive como banco ao vivo (sem locking confiável) e hospedar no próprio PC com túnel (depende do PC ligado).
-
-O Drive entra só como destino do backup diário (`rclone`). O scraper e o `load` seguem locais, porque dependem do browser e da sessão da Udemy; o conteúdo novo sobe por rsync e o `load` roda na VM. O app local deixa de ser usado para estudar, para não haver dois históricos. O custo é a dependência de um free tier que a Oracle já reduziu e pode recuperar se a VM ficar ociosa, mitigada pelo backup no Drive.
