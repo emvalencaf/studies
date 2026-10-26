@@ -19,6 +19,17 @@ def get_conn(db_path: str | None):
     return connect(db_path, check_same_thread=False)
 
 
+def _secrets_to_env() -> None:
+    """No Community Cloud as credenciais do Turso vêm de st.secrets."""
+    for key in ("TURSO_URL", "TURSO_TOKEN"):
+        try:
+            if key in st.secrets:
+                os.environ.setdefault(key, st.secrets[key])
+        except FileNotFoundError:
+            return
+
+
+_secrets_to_env()
 conn = get_conn(os.environ.get("STUDIES_DB"))
 ss = st.session_state
 

@@ -41,17 +41,29 @@ def create_attempt(
         (exam_id, kind, mode, int(shuffle), _now()),
     )
     attempt_id = cur.lastrowid
+    option_counts: dict[int, int] = {}
+    if shuffle:  # uma consulta por lote, não por Question: no Turso cada ida e volta custa ~200 ms
+        for i in range(0, len(revision_ids), 500):
+            chunk = revision_ids[i:i + 500]
+            rows = conn.execute(
+                f"SELECT id, options_json FROM question_revision WHERE id IN ({','.join('?' * len(chunk))})", chunk
+            ).fetchall()
+            option_counts.update({r[0]: len(json.loads(r[1])) for r in rows})
+    snapshot = []
     for position, rev_id in enumerate(revision_ids, start=1):
         permutation = None
         if shuffle:
-            n = len(json.loads(conn.execute("SELECT options_json FROM question_revision WHERE id=?", (rev_id,)).fetchone()[0]))
-            order = list(range(n))
+            order = list(range(option_counts[rev_id]))
             rng.shuffle(order)
             permutation = json.dumps(order)
+        snapshot.append((attempt_id, position, rev_id, permutation))
+    # INSERT de várias linhas: no Turso o executemany faz uma ida e volta por linha.
+    for i in range(0, len(snapshot), 200):
+        chunk = snapshot[i:i + 200]
         conn.execute(
-            "INSERT INTO attempt_question (attempt_id, position, question_revision_id, permutation_json) "
-            "VALUES (?, ?, ?, ?)",
-            (attempt_id, position, rev_id, permutation),
+            "INSERT INTO attempt_question (attempt_id, position, question_revision_id, permutation_json) VALUES "
+            + ",".join(["(?, ?, ?, ?)"] * len(chunk)),
+            [v for row in chunk for v in row],
         )
     conn.commit()
     return attempt_id

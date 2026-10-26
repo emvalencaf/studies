@@ -1078,29 +1078,36 @@ name = "studies"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "libsql" },
     { name = "pandas" },
-    { name = "playwright" },
     { name = "plotly" },
     { name = "streamlit" },
 ]
 
+[package.optional-dependencies]
+scrape = [
+    { name = "playwright" },
+]
+
 [package.dev-dependencies]
 dev = [
-    { name = "libsql" },
+    { name = "playwright" },
     { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "libsql", specifier = ">=0.1.11" },
     { name = "pandas" },
-    { name = "playwright" },
+    { name = "playwright", marker = "extra == 'scrape'" },
     { name = "plotly" },
     { name = "streamlit" },
 ]
+provides-extras = ["scrape"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "libsql", specifier = ">=0.1.11" },
+    { name = "playwright" },
     { name = "pytest" },
 ]
 

@@ -7,11 +7,13 @@ O vocabulário (Certification, Course, Exam, Question, Attempt, Answer, Drill, R
 ## Requisitos
 
 - Python 3.12 e [`uv`](https://docs.astral.sh/uv/)
-- Chromium do Playwright, só para o scraper: `uv run playwright install chromium`
+- Só para o scraper: `uv sync --extra scrape` e `uv run playwright install chromium`
 
 ```bash
 uv sync
 ```
+
+**Banco:** SQLite local em `data/studies.db` por padrão. Com `TURSO_URL` e `TURSO_TOKEN` no `.env` (ou em `st.secrets`), o app e o `load` usam o Turso; `STUDIES_DB` força o SQLite local.
 
 ## Uso
 
@@ -113,7 +115,7 @@ Os Sections do exame são só 5 domínios, largos demais para estudo dirigido. P
 | `src/studies/metrics.py` | Métricas do dashboard (funções puras sobre pandas) |
 | `src/studies/normalize.py` | Carga do JSON bruto no SQLite, com revisões por hash |
 | `src/studies/topics.py` | Topics e arestas a partir dos links das explicações |
-| `src/studies/db.py` | Schema SQLite e migrações leves |
+| `src/studies/db.py` | Schema, migrações leves e escolha do backend (SQLite local ou Turso) |
 | `src/studies/scrape.py` | Login e download dos Exams |
 | `src/studies/backup.py` | Backup do banco |
 

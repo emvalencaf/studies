@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import warnings
 from pathlib import Path
 
 DEFAULT_DB = Path("data/studies.db")
@@ -98,12 +99,146 @@ CREATE TABLE IF NOT EXISTS answer (
 """
 
 
-def connect(path: Path | str | None = None, **kwargs) -> sqlite3.Connection:
-    path = path or os.environ.get("STUDIES_DB", DEFAULT_DB)
-    if str(path) != ":memory:":
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, **kwargs)
-    conn.row_factory = sqlite3.Row
+def load_env(path: Path | str = ".env") -> None:
+    """Carrega KEY='valor' do .env para os.environ sem sobrescrever o que já está definido."""
+    p = Path(path)
+    if not p.exists():
+        return
+    for line in p.read_text().splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip() and not key.lstrip().startswith("#"):
+            os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+class Row:
+    """Linha acessível por índice, fatia ou nome de coluna, como o sqlite3.Row.
+    O cliente libsql devolve tuplas, então o backend Turso precisa disto."""
+
+    __slots__ = ("_names", "_values")
+
+    def __init__(self, names: tuple[str, ...], values: tuple):
+        self._names, self._values = names, tuple(values)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            try:
+                return self._values[self._names.index(key)]
+            except ValueError:
+                raise IndexError(f"No item with that key: {key!r}") from None
+        return self._values[key]
+
+    def __iter__(self):
+        return iter(self._values)
+
+    def __len__(self):
+        return len(self._values)
+
+    def __eq__(self, other):
+        return self._values == (other._values if isinstance(other, Row) else other)
+
+    def __hash__(self):
+        return hash(self._values)
+
+    def __repr__(self):
+        return f"Row({dict(zip(self._names, self._values))})"
+
+    def keys(self) -> list[str]:
+        return list(self._names)
+
+
+class _Cursor:
+    def __init__(self, raw):
+        self._raw = raw
+
+    def execute(self, sql, params=()):
+        self._raw.execute(sql, tuple(params))
+        return self
+
+    def _row(self, values):
+        names = tuple(d[0] for d in self._raw.description or ())
+        return Row(names, values)
+
+    def fetchone(self):
+        values = self._raw.fetchone()
+        return None if values is None else self._row(values)
+
+    def fetchall(self) -> list[Row]:
+        return [self._row(v) for v in self._raw.fetchall()]
+
+    def fetchmany(self, size: int = 1) -> list[Row]:
+        return [self._row(v) for v in self._raw.fetchmany(size)]
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+    def close(self) -> None:
+        self._raw.close()
+
+    @property
+    def lastrowid(self):
+        return self._raw.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._raw.rowcount
+
+    @property
+    def description(self):
+        return self._raw.description
+
+
+class TursoConnection:
+    """Dá à conexão remota do libsql a superfície do sqlite3 que o app usa."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def cursor(self) -> _Cursor:
+        return _Cursor(self._raw.cursor())
+
+    def execute(self, sql, params=()) -> _Cursor:
+        return self.cursor().execute(sql, params)
+
+    def executemany(self, sql, seq) -> _Cursor:
+        cur = self.cursor()
+        cur._raw.executemany(sql, [tuple(p) for p in seq])
+        return cur
+
+    def executescript(self, script: str) -> None:
+        self._raw.executescript(script)
+
+    def commit(self) -> None:
+        self._raw.commit()
+
+    def rollback(self) -> None:
+        self._raw.rollback()
+
+    def close(self) -> None:
+        pass  # a conexão remota não segura recursos locais
+
+
+# O pandas avisa que só testa sqlite3 e SQLAlchemy; o libsql funciona com ele (ver issue 02).
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
+
+
+def backend(conn) -> str:
+    return "turso" if isinstance(conn, TursoConnection) else "sqlite"
+
+
+def connect(path: Path | str | None = None, **kwargs):
+    """SQLite local quando há caminho (argumento ou STUDIES_DB) ou não há credenciais do Turso;
+    Turso quando TURSO_URL e TURSO_TOKEN estão no ambiente."""
+    path = path or os.environ.get("STUDIES_DB")
+    if path is None and os.environ.get("TURSO_URL"):
+        import libsql
+
+        conn = TursoConnection(libsql.connect(os.environ["TURSO_URL"], auth_token=os.environ["TURSO_TOKEN"]))
+    else:
+        path = path or DEFAULT_DB
+        if str(path) != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path, **kwargs)
+        conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     _migrate(conn)
