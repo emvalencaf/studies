@@ -1,11 +1,16 @@
 import json
 import os
+import sys
 import time
+from pathlib import Path
 
 import streamlit as st
 
+# O Community Cloud roda este arquivo direto, sem instalar o pacote: põe src/ no caminho de imports.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from studies import attempts, backup, dashboard, selection
-from studies.db import connect
+from studies.db import backend, connect
 from studies.text import option_to_markdown
 
 KIND_LABELS = {"exam": "Exam", "review": "Review", "drill": "Drill"}
@@ -46,7 +51,7 @@ def open_attempt(attempt_id: int):
 
 def home():
     st.title("Studies")
-    if backup.is_stale():
+    if backend(conn) == "sqlite" and backup.is_stale():
         age = backup.last_backup_age()
         st.warning(("Nenhum backup do banco ainda" if age is None else f"Último backup há {age.days} dias")
                    + ". Rode `uv run python -m studies.backup`.")
