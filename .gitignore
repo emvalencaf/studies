@@ -1,0 +1,9 @@
+storage_state.json
+.env
+data/studies.db
+.venv/
+__pycache__/
+.playwright-mcp/
+.pytest_cache/
+data/backups/
+data/
