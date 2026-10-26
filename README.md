@@ -41,6 +41,8 @@ A sidebar tem duas páginas.
 
 ### Atualizar os Exams da Udemy
 
+Com `TURSO_URL` e `TURSO_TOKEN` no `.env`, o `load` grava direto no Turso, que é a fonte da verdade do histórico. O `data/studies.db` local ficou só como cópia anterior à migração: não estude por ele, para não criar dois históricos. O `load` contra o Turso é lento (uma consulta por registro, alguns minutos).
+
 ```bash
 uv run python -m studies.scrape login     # uma vez: login manual numa janela, salva storage_state.json
 uv run python -m studies.scrape run       # baixa só o que mudou
