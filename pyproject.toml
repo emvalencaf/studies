@@ -11,7 +11,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "libsql>=0.1.11",
+    "pytest",
+]
 
 [build-system]
 requires = ["hatchling"]
