@@ -12,7 +12,7 @@ from studies.db import SCHEMA, Row, TursoConnection, backend, connect, load_env
 @pytest.fixture
 def turso_like():
     """TursoConnection sobre um sqlite3 puro: devolve tuplas, como o libsql."""
-    c = TursoConnection(sqlite3.connect(":memory:"))
+    c = TursoConnection(lambda r=sqlite3.connect(":memory:"): r)
     c.executescript(SCHEMA)
     return c
 
@@ -81,3 +81,53 @@ def test_load_env_does_not_override_existing(monkeypatch, tmp_path):
     import os
     assert os.environ["A_NEW"] == "1" and os.environ["A_OLD"] == "from env"
     monkeypatch.delenv("A_NEW")
+
+
+class _Flaky:
+    """Conexão que perde o stream na primeira chamada de leitura, como o Turso após ficar ociosa."""
+
+    def __init__(self, inner, fail_next=True):
+        self.inner, self.fail_next = inner, fail_next
+
+    def cursor(self):
+        if self.fail_next:
+            self.fail_next = False
+            raise ValueError('Hrana: `api error: `status=404 Not Found, body={"error":"stream not found: x"}``')
+        return self.inner.cursor()
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+
+def _flaky_conn(fail_next=True):
+    shared = sqlite3.connect(":memory:")
+    shared.executescript(SCHEMA)
+    made = []
+
+    def factory():
+        made.append(1)
+        return _Flaky(shared, fail_next=fail_next and len(made) == 1)
+
+    return TursoConnection(factory), made
+
+
+def test_reconnects_after_stream_lost_on_read():
+    conn, made = _flaky_conn()
+    assert conn.execute("SELECT count(*) FROM certification").fetchone()[0] == 0
+    assert len(made) == 2  # conexão original + a refeita
+
+
+def test_does_not_reconnect_with_pending_write():
+    conn, made = _flaky_conn(fail_next=False)
+    conn.execute("INSERT INTO certification (slug, name) VALUES ('a', 'A')")  # escrita sem commit
+    conn._raw.fail_next = True
+    with pytest.raises(ValueError, match="stream not found"):
+        conn.execute("SELECT 1")
+    assert len(made) == 1  # nada de reconectar: perderia a escrita pendente
+
+
+def test_other_errors_are_not_swallowed():
+    conn, made = _flaky_conn(fail_next=False)
+    with pytest.raises(sqlite3.OperationalError):
+        conn.execute("SELECT * FROM tabela_que_nao_existe")
+    assert len(made) == 1

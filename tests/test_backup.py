@@ -46,7 +46,7 @@ def test_staleness(tmp_path):
 def _turso_like():
     from studies.db import SCHEMA, TursoConnection
 
-    c = TursoConnection(sqlite3.connect(":memory:"))
+    c = TursoConnection(lambda r=sqlite3.connect(":memory:"): r)
     c.executescript(SCHEMA)
     c.execute("INSERT INTO certification (slug, name) VALUES ('x', 'X')")
     c.execute("INSERT INTO certification (slug, name) VALUES ('y', 'Y')")

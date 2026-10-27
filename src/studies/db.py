@@ -152,12 +152,18 @@ class Row:
         return list(self._names)
 
 
+def _stream_lost(exc: Exception) -> bool:
+    """O Turso derruba o stream de uma conexão ociosa; o libsql avisa com 'stream not found'."""
+    return "stream not found" in str(exc).lower()
+
+
 class _Cursor:
-    def __init__(self, raw):
-        self._raw = raw
+    def __init__(self, conn: "TursoConnection"):
+        self._conn = conn
+        self._raw = None
 
     def execute(self, sql, params=()):
-        self._raw.execute(sql, tuple(params))
+        self._raw = self._conn._exec(sql, params)
         return self
 
     def _row(self, values):
@@ -178,7 +184,8 @@ class _Cursor:
         return iter(self.fetchall())
 
     def close(self) -> None:
-        self._raw.close()
+        if self._raw is not None:
+            self._raw.close()
 
     @property
     def lastrowid(self):
@@ -193,31 +200,79 @@ class _Cursor:
         return self._raw.description
 
 
-class TursoConnection:
-    """Dá à conexão remota do libsql a superfície do sqlite3 que o app usa."""
+_READ_PREFIXES = ("SELECT", "PRAGMA", "WITH", "EXPLAIN")
 
-    def __init__(self, raw):
-        self._raw = raw
+
+class TursoConnection:
+    """Dá à conexão remota do libsql a superfície do sqlite3 que o app usa e a refaz sozinha
+    quando o Turso derruba o stream de uma conexão ociosa (o app guarda a conexão em cache).
+
+    Só reconecta quando não há escrita pendente de commit: refazer a conexão no meio de uma
+    transação perderia essas escritas em silêncio, então nesse caso o erro sobe."""
+
+    def __init__(self, connect_fn):
+        self._connect_fn = connect_fn
+        self._raw = connect_fn()
+        self._dirty = False  # escrita executada e ainda sem commit/rollback
+
+    def _reconnect(self) -> None:
+        self._raw = self._connect_fn()
+        self._raw.execute("PRAGMA foreign_keys = ON")
+
+    def _run(self, fn):
+        try:
+            return fn(self._raw)
+        except ValueError as e:
+            if self._dirty or not _stream_lost(e):
+                raise
+            self._reconnect()
+            return fn(self._raw)
+
+    def _exec(self, sql, params=()):
+        def go(raw):
+            cur = raw.cursor()
+            cur.execute(sql, tuple(params))
+            return cur
+
+        cur = self._run(go)
+        if not sql.lstrip().upper().startswith(_READ_PREFIXES):
+            self._dirty = True
+        return cur
 
     def cursor(self) -> _Cursor:
-        return _Cursor(self._raw.cursor())
+        return _Cursor(self)
 
     def execute(self, sql, params=()) -> _Cursor:
         return self.cursor().execute(sql, params)
 
     def executemany(self, sql, seq) -> _Cursor:
-        cur = self.cursor()
-        cur._raw.executemany(sql, [tuple(p) for p in seq])
+        rows = [tuple(p) for p in seq]
+
+        def go(raw):
+            cur = raw.cursor()
+            cur.executemany(sql, rows)
+            return cur
+
+        cur = _Cursor(self)
+        cur._raw = self._run(go)
+        self._dirty = True
         return cur
 
     def executescript(self, script: str) -> None:
-        self._raw.executescript(script)
+        self._run(lambda raw: raw.executescript(script))
 
     def commit(self) -> None:
-        self._raw.commit()
+        if self._dirty:
+            self._raw.commit()
+            self._dirty = False
 
     def rollback(self) -> None:
-        self._raw.rollback()
+        try:
+            self._raw.rollback()
+        except ValueError as e:
+            if not _stream_lost(e):
+                raise  # stream perdido: a transação já foi descartada pelo servidor
+        self._dirty = False
 
     def close(self) -> None:
         pass  # a conexão remota não segura recursos locais
@@ -238,7 +293,8 @@ def connect(path: Path | str | None = None, **kwargs):
     if path is None and os.environ.get("TURSO_URL"):
         import libsql
 
-        conn = TursoConnection(libsql.connect(os.environ["TURSO_URL"], auth_token=os.environ["TURSO_TOKEN"]))
+        url, token = os.environ["TURSO_URL"], os.environ["TURSO_TOKEN"]
+        conn = TursoConnection(lambda: libsql.connect(url, auth_token=token))
     else:
         path = path or DEFAULT_DB
         if str(path) != ":memory:":
