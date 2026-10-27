@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from studies import backup
 from studies.db import connect
@@ -41,3 +41,38 @@ def test_staleness(tmp_path):
     backup.backup(_db(tmp_path), out, now=now - timedelta(days=3))
     assert not backup.is_stale(out, now)
     assert backup.is_stale(out, now + timedelta(days=5))
+
+
+def _turso_like():
+    from studies.db import SCHEMA, TursoConnection
+
+    c = TursoConnection(sqlite3.connect(":memory:"))
+    c.executescript(SCHEMA)
+    c.execute("INSERT INTO certification (slug, name) VALUES ('x', 'X')")
+    c.execute("INSERT INTO certification (slug, name) VALUES ('y', 'Y')")
+    c.commit()
+    return c
+
+
+def test_backup_remote_exports_every_table_and_prunes(tmp_path):
+    conn, out = _turso_like(), tmp_path / "b"
+    start = datetime(2026, 10, 1, 12)
+    for i in range(4):
+        dest = backup.backup_remote(conn, out, keep=3, now=start + timedelta(days=i))
+    assert len(list(out.glob("studies-*.db"))) == 3
+    got = sqlite3.connect(dest)
+    assert got.execute("SELECT slug FROM certification ORDER BY slug").fetchall() == [("x",), ("y",)]
+    names = {r[0] for r in got.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"attempt", "answer", "question_revision", "backup_log"} <= names
+
+
+def test_remote_backup_log_and_staleness(tmp_path):
+    conn = connect(tmp_path / "x.db")
+    now = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+    assert backup.remote_backup_age(conn, now) is None and backup.is_remote_stale(conn, now)
+    backup.record_backup(conn, now=now - timedelta(days=1))
+    assert backup.remote_backup_age(conn, now) == timedelta(days=1)
+    assert not backup.is_remote_stale(conn, now)
+    backup.record_backup(conn, now=now - timedelta(days=5))  # o mais recente continua sendo o de 1 dia
+    assert backup.remote_backup_age(conn, now) == timedelta(days=1)
+    assert backup.is_remote_stale(conn, now + timedelta(days=3))

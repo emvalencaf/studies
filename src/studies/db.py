@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS revision_topic (
     is_primary INTEGER NOT NULL,
     PRIMARY KEY (question_revision_id, topic)
 );
+-- Cada backup concluído no Drive; o app lê o último para avisar quando está velho.
+CREATE TABLE IF NOT EXISTS backup_log (
+    id INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    destination TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS attempt (
     id INTEGER PRIMARY KEY,
     exam_id INTEGER REFERENCES exam(id),  -- NULL em Review e Drill

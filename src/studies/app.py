@@ -51,10 +51,13 @@ def open_attempt(attempt_id: int):
 
 def home():
     st.title("Studies")
-    if backend(conn) == "sqlite" and backup.is_stale():
-        age = backup.last_backup_age()
-        st.warning(("Nenhum backup do banco ainda" if age is None else f"Último backup há {age.days} dias")
-                   + ". Rode `uv run python -m studies.backup`.")
+    if backend(conn) == "sqlite":
+        stale, age, hint = backup.is_stale(), backup.last_backup_age(), "Rode `uv run python -m studies.backup`."
+    else:
+        stale, age = backup.is_remote_stale(conn), backup.remote_backup_age(conn)
+        hint = "Confira o workflow de backup no GitHub (Actions)."
+    if stale:
+        st.warning(("Nenhum backup do banco ainda" if age is None else f"Último backup há {age.days} dias") + ". " + hint)
 
     st.subheader("Attempts em andamento")
     running = attempts.in_progress_attempts(conn)
