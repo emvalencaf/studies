@@ -10,7 +10,7 @@ Limites das páginas oficiais já levantados em `research-free-tiers.md` (2026-1
 
 - Cadastro do Render: exige cartão? (fontes conflitantes; testar o cadastro de verdade.)
 - Cold start medido: tempo do primeiro `GET /health` depois de dormir, com FastAPI + pandas + libsql instalados. A documentação diz ~1 minuto; se passar de ~90 s, voltar ao plano B (Cloud Run).
-- RAM e tempo das consultas do Dashboard com 512 MB e 0,1 CPU contra o Turso.
+- RAM e tempo das consultas do Dashboard com 512 MB e 0,1 CPU contra o Turso. Medida local já feita na issue 02 (~0,17 s de CPU, ~160 MB); falta medir no Render de verdade.
 - Autenticação da API: a Vercel Authentication protege só o front. Definir como a API exige um token (variável de ambiente no Render, guardado no React) e testar CORS entre os domínios do Vercel e do Render.
 
 Critério: relatório curto com os números e decisão: seguir, ou trocar de hospedagem. Se seguir, ADR 0003 vira `accepted`.

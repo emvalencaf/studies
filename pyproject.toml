@@ -12,9 +12,12 @@ dependencies = [
 
 [project.optional-dependencies]
 scrape = ["playwright"]
+api = ["fastapi", "uvicorn"]
 
 [dependency-groups]
 dev = [
+    "fastapi",
+    "httpx",
     "playwright",
     "pytest",
 ]
