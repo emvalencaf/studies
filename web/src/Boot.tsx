@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from './api'
+import { api, API_BASE } from './api'
 
 const TIMEOUT_MS = 120_000 // o Render Free leva ~1 min para acordar
 
@@ -48,8 +48,13 @@ export default function Boot({ onReady }: { onReady: () => void }) {
             <span>
               <span className="text-zinc-100">{failed ? 'A API não respondeu' : `Acordando a API · ${elapsed}s`}</span>
               <span className="block text-xs text-zinc-500">
-                {failed ? 'Passou de 2 minutos. Confira o serviço no Render.' : 'O plano grátis do Render dorme sem uso; a primeira abertura do dia leva cerca de 1 minuto.'}
+                {failed ? 'Passou de 2 minutos. O serviço do Render pode estar fora do ar, ou o CORS_ORIGINS dele não inclui este endereço.' : 'O plano grátis do Render dorme sem uso; a primeira abertura do dia leva cerca de 1 minuto.'}
               </span>
+              {failed && (
+                <span className="mt-2 block break-all text-xs text-zinc-600">
+                  API: {API_BASE}<br />Origem deste front (precisa estar em CORS_ORIGINS): {window.location.origin}
+                </span>
+              )}
             </span>
           </li>
         </ul>
