@@ -8,10 +8,15 @@ import { ErrorBox, pct, Skeleton } from '../ui'
 const CONF = { confident: 'Confiante', educated_guess: 'Educated guess', guess: 'Chute' } as Record<string, string>
 const html = (s: string) => ({ __html: DOMPurify.sanitize(s) })
 
-function useShowScore(): [boolean, () => void] {
-  const [show, setShow] = useState(() => { try { return localStorage.getItem('studies_show_score') !== '0' } catch { return true } })
+// Escolha guardada por modo. Sem escolha: visível no Practice, escondido no Exam em andamento (como na prova real).
+function useShowScore(mode: 'practice' | 'exam', open: boolean): [boolean, () => void] {
+  const key = `studies_show_score_${mode}`
+  const fallback = !(mode === 'exam' && open)
+  const [show, setShow] = useState<boolean>(() => {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1' } catch { return fallback }
+  })
   const toggle = () => setShow((v) => {
-    try { localStorage.setItem('studies_show_score', v ? '0' : '1') } catch { /* sem armazenamento */ }
+    try { localStorage.setItem(key, v ? '0' : '1') } catch { /* sem armazenamento */ }
     return !v
   })
   return [show, toggle]
@@ -25,8 +30,8 @@ function verdict(s: Score) {
   return { tone: 'text-sky-400', text: `Faltam ${p.still_needed} acertos entre ${p.remaining} Questions restantes (meta ${p.needed}/${s.total}).` }
 }
 
-function ScoreBar({ score, open }: { score: Score; open: boolean }) {
-  const [show, toggle] = useShowScore()
+function ScoreBar({ score, open, mode }: { score: Score; open: boolean; mode: 'practice' | 'exam' }) {
+  const [show, toggle] = useShowScore(mode, open)
   const p = score.pass
   const v = verdict(score)
   const cell = (label: string, value: string | number, tone = '') => (
@@ -106,7 +111,7 @@ export default function AttemptPage() {
   const a = attempt.data
   return (
     <div>
-      {a ? <ScoreBar score={a.score} open={a.state === 'in_progress'} /> : <Skeleton className="m-2 h-8" />}
+      {a ? <ScoreBar key={`${a.id}-${a.state}`} score={a.score} open={a.state === 'in_progress'} mode={a.mode} /> : <Skeleton className="m-2 h-8" />}
       {a && a.state !== 'in_progress' && (
         <div className="border-b border-zinc-800 bg-zinc-900/40 px-4 py-2 text-zinc-300">
           Attempt {a.state === 'finished' ? 'finalizado' : 'abandonado'}: {a.score.correct}/{a.score.answered} certas, {a.score.skipped} puladas.

@@ -21,4 +21,4 @@ Abra http://localhost:5173 e cole `devtoken` na tela de token.
 
 - **Boot:** a tela espera `/health` até 2 min, porque o Render Free dorme (~1 min para acordar).
 - **Token:** fica no `localStorage` deste navegador. Qualquer 401 da API o apaga e volta para a tela de token.
-- **Placar:** mostra certas e erradas também no Exam mode (como o Streamlit fazia), então revela se as respostas já dadas estavam certas. O botão "placar" esconde, e a escolha fica salva.
+- **Placar:** no Exam mode em andamento nasce escondido, porque certas e erradas revelariam se as respostas já dadas estavam certas. No Practice nasce visível. O botão "placar" alterna, e a escolha fica salva por modo. Ao finalizar o Attempt, volta ao padrão (visível), salvo escolha explícita.
