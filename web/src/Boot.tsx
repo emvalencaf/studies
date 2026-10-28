@@ -7,6 +7,7 @@ const TIMEOUT_MS = 120_000 // o Render Free leva ~1 min para acordar
 export default function Boot({ onReady }: { onReady: () => void }) {
   const [elapsed, setElapsed] = useState(0)
   const [failed, setFailed] = useState(false)
+  const [lastError, setLastError] = useState('')
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -21,7 +22,8 @@ export default function Boot({ onReady }: { onReady: () => void }) {
           await api('/health', { signal: AbortSignal.timeout(20_000) })
           if (alive) onReady()
           return
-        } catch {
+        } catch (e) {
+          if (alive) setLastError(`${(e as Error).name}: ${(e as Error).message}`)
           await new Promise((r) => setTimeout(r, 2_000))
         }
       }
@@ -52,7 +54,7 @@ export default function Boot({ onReady }: { onReady: () => void }) {
               </span>
               {failed && (
                 <span className="mt-2 block break-all text-xs text-zinc-600">
-                  API: {API_BASE}<br />Origem deste front (precisa estar em CORS_ORIGINS): {window.location.origin}
+                  API: {API_BASE}<br />Origem deste front (precisa estar em CORS_ORIGINS): {window.location.origin}<br />Último erro: {lastError || '–'}<br />(TimeoutError = a API não respondeu a tempo; TypeError: Failed to fetch = bloqueio de CORS, extensão ou rede)
                 </span>
               )}
             </span>
