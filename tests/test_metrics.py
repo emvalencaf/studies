@@ -188,3 +188,30 @@ def test_topic_graph_accuracy_on_edges(conn):
     row = edges2[(edges2["a"] == a) & (edges2["b"] == b)].iloc[0]
     assert row["answers"] == 4 and row["accuracy"] == 0.75
     assert metrics.by_granularity(df, "topic")["n"].sum() == 4
+
+
+def test_pass_progress_math():
+    p = metrics.pass_progress(correct=30, wrong=5, total=65)
+    assert p["needed"] == 49 and p["remaining"] == 30 and p["still_needed"] == 19
+    assert p["accuracy"] == pytest.approx(30 / 35) and not p["passed"] and not p["failed"]
+    assert metrics.pass_progress(49, 0, 65)["passed"]
+    assert metrics.pass_progress(30, 17, 65)["failed"]  # 30 + 18 restantes = 48 < 49
+    assert not metrics.pass_progress(30, 16, 65)["failed"]
+    assert metrics.pass_progress(0, 0, 65)["accuracy"] is None
+
+
+def test_streaks():
+    s = metrics.streaks([True, True, False, False, False, True, True, True, True])
+    assert s == {"current": 4, "current_kind": "correct", "longest_correct": 4, "longest_wrong": 3}
+    assert metrics.streaks([False])["current_kind"] == "wrong"
+    assert metrics.streaks([])["current"] == 0
+
+
+def test_readiness_needs_consecutive_recent_attempts():
+    def scores(vals):
+        return pd.DataFrame({"score": vals, "finished_at": pd.date_range("2026-10-01", periods=len(vals))})
+    assert metrics.readiness(scores([0.9, 0.85, 0.8]))["ready"]
+    assert not metrics.readiness(scores([0.9, 0.7, 0.85, 0.9]))["ready"]
+    r = metrics.readiness(scores([0.5, 0.9, 0.85]))
+    assert r["streak"] == 2 and not r["ready"]
+    assert not metrics.readiness(scores([0.9, 0.9]))["ready"]

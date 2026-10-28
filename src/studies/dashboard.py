@@ -85,6 +85,29 @@ def render(conn):
     k[2].metric("Acerto em inéditas", fmt_pct(metrics.accuracy(new)), help="Primeira vez que a Question foi respondida. Mede conhecimento.")
     k[3].metric("Acerto em repetições", fmt_pct(metrics.accuracy(rep)), help="Pode estar inflado por memória.")
 
+    scores = metrics.attempt_scores(conn, cert_id)
+    ready = metrics.readiness(scores)
+    st.subheader("Pronto para a certificação?")
+    r = st.columns([2, 1, 1])
+    if ready["ready"]:
+        r[0].success(f"Pronto: os últimos {ready['needed']} Exams finalizados ficaram em {metrics.READY_RATIO:.0%} ou mais.")
+    elif ready["attempts"] < ready["needed"]:
+        r[0].info(f"Ainda sem dados: {ready['attempts']} de {ready['needed']} Exams finalizados necessários.")
+    else:
+        r[0].warning(f"Ainda não: {ready['streak']} de {ready['needed']} Exams seguidos com {metrics.READY_RATIO:.0%} ou mais.")
+    r[0].progress(ready["streak"] / ready["needed"], text=f"{ready['streak']}/{ready['needed']} Exams seguidos na meta")
+    r[1].metric("Média dos últimos Exams", fmt_pct(ready["recent_mean"]))
+    r[2].metric("Meta", f"{metrics.READY_RATIO:.0%}", help="Consistência: a meta vale para cada um dos últimos Exams, não só para a média. "
+                "Só Attempts de Exam finalizados contam; Review e Drill ficam de fora.")
+
+    sk = metrics.streaks(df_kind["is_correct"].tolist())
+    s = st.columns(3)
+    kind_label = {"correct": "acertos", "wrong": "erros", None: ""}[sk["current_kind"]]
+    s[0].metric("Sequência atual", f"{sk['current']} {kind_label}".strip())
+    s[1].metric("Maior sequência de acertos", sk["longest_correct"])
+    s[2].metric("Maior sequência de erros", sk["longest_wrong"])
+    st.caption("Sequências sobre todas as Answers dos tipos de Attempt selecionados, independente da janela.")
+
     t_prog, t_best, t_cal, t_pace, t_cons, t_topic, t_q = st.tabs(
         ["Progressão", "Melhor desempenho", "Calibração", "Ritmo", "Consistência", "Temas", "Questions"])
 
@@ -113,7 +136,6 @@ def render(conn):
                      column_config={"Acerto": st.column_config.ProgressColumn("Acerto", format="percent", min_value=0, max_value=1)})
 
     with t_best:
-        scores = metrics.attempt_scores(conn, cert_id)
         st.caption("Só Attempts de Exam finalizados. Review e Drill ficam de fora; puladas não entram no acerto.")
         if scores.empty:
             st.info("Nenhum Exam finalizado ainda.")

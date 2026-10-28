@@ -1,4 +1,5 @@
 """Métricas do dashboard. Funções puras sobre o DataFrame de Answers (exceto as que consultam o banco)."""
+import math
 import sqlite3
 from datetime import datetime
 
@@ -272,3 +273,54 @@ def neighbors(edges: pd.DataFrame, topic: str) -> pd.DataFrame:
     m = edges[(edges["a"] == topic) | (edges["b"] == topic)].copy()
     m["neighbor"] = m["a"].where(m["b"] == topic, m["b"])
     return m.drop(columns=["a", "b"]).sort_values("questions", ascending=False).reset_index(drop=True)
+
+
+# A AWS reporta nota escalada (mínimo 750 de 1000) e não publica o mapeamento para acertos brutos.
+# 75% é a aproximação usada aqui; o exame tem 65 Questions pontuadas (mais 10 não pontuadas, não identificadas).
+PASS_RATIO = 0.75
+READY_RATIO = 0.80
+READY_ATTEMPTS = 3
+
+
+def pass_progress(correct: int, wrong: int, total: int, pass_ratio: float = PASS_RATIO) -> dict:
+    """Situação de um Attempt frente à aprovação. Puladas contam como erradas, como na prova real.
+    'passed'/'failed' são matemáticos: com as Questions restantes não há mais como mudar o resultado."""
+    needed = math.ceil(pass_ratio * total - 1e-9)
+    remaining = total - correct - wrong
+    answered = correct + wrong
+    return {
+        "needed": needed,
+        "remaining": remaining,
+        "accuracy": correct / answered if answered else None,
+        "still_needed": max(needed - correct, 0),
+        "passed": correct >= needed,
+        "failed": correct + remaining < needed,
+    }
+
+
+def streaks(results: list[bool]) -> dict:
+    """Sequências de acertos e de erros numa lista cronológica de resultados.
+    'current' é a sequência em andamento (tipo 'correct' ou 'wrong')."""
+    longest = {True: 0, False: 0}
+    run = 0
+    prev = None
+    for r in results:
+        run = run + 1 if r == prev else 1
+        prev = r
+        longest[r] = max(longest[r], run)
+    return {"current": run if results else 0, "current_kind": None if not results else ("correct" if prev else "wrong"),
+            "longest_correct": longest[True], "longest_wrong": longest[False]}
+
+
+def readiness(scores: pd.DataFrame, ratio: float = READY_RATIO, n: int = READY_ATTEMPTS) -> dict:
+    """Pronto para a certificação: os últimos `n` Attempts de Exam finalizados com nota >= `ratio`.
+    'streak' é quantos Attempts seguidos, contando do mais recente, estão na meta (limitado a `n`)."""
+    s = scores.dropna(subset=["score"]).sort_values("finished_at")["score"].tolist()
+    streak = 0
+    for v in reversed(s):
+        if v < ratio:
+            break
+        streak += 1
+    last = s[-n:]
+    return {"ready": len(s) >= n and streak >= n, "streak": min(streak, n), "needed": n, "attempts": len(s),
+            "recent_mean": sum(last) / len(last) if last else None}

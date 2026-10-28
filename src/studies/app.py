@@ -9,7 +9,7 @@ import streamlit as st
 # O Community Cloud roda este arquivo direto, sem instalar o pacote: põe src/ no caminho de imports.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from studies import attempts, backup, dashboard, selection
+from studies import attempts, backup, dashboard, metrics, selection
 from studies.db import backend, connect
 from studies.text import option_to_markdown
 
@@ -200,16 +200,45 @@ def render_question(attempt_id: int, rows, pos: int, mode: str, state: str):
         st.rerun()
 
 
+def score_panel(s: dict, kind: str, state: str):
+    """Acertos, erros, restantes e % de acerto até agora; em Exam, também o que falta para a aprovação.
+    Pode ser escondido, porque ver o placar durante a prova pode causar pressão."""
+    if not st.toggle("Mostrar placar", value=True, key="show_score", help="Esconda se ver o placar durante o Attempt te pressiona."):
+        return
+    answered = s["correct"] + s["wrong"]
+    open_ = state == "in_progress"
+    # Attempt encerrado: puladas viram erros, como na prova real
+    p = metrics.pass_progress(s["correct"], s["wrong"] + (0 if open_ else s["skipped"]), s["total"])
+    c = st.columns(5)
+    c[0].metric("Certas", s["correct"])
+    c[1].metric("Erradas", s["wrong"])
+    c[2].metric("Faltam", s["skipped"] if open_ else 0)
+    c[3].metric("Acerto até agora", "–" if not answered else f"{s['correct'] / answered:.0%}",
+                help="Certas dividido pelas já respondidas.")
+    if kind != "exam":
+        return
+    c[4].metric("Meta de aprovação", f"{p['needed']}/{s['total']}", help=f"{metrics.PASS_RATIO:.0%} de acerto. A AWS usa nota escalada (mínimo 750/1000) e não "
+                "publica o mapeamento para acertos; 75% é uma aproximação.")
+    if p["passed"]:
+        st.success(f"Matematicamente aprovado: {s['correct']} certas, a meta era {p['needed']}.")
+    elif p["failed"]:
+        st.error(f"Matematicamente reprovado: mesmo acertando todas as restantes, não chega a {p['needed']}.")
+    else:
+        st.info(f"Faltam {p['still_needed']} acertos para a meta, entre {p['remaining']} Questions restantes.")
+
+
 def attempt_view():
     attempt_id, pos = ss.attempt_id, ss.pos
     rows = attempts.attempt_questions(conn, attempt_id)
     total = len(rows)
-    state, mode = conn.execute("SELECT state, mode FROM attempt WHERE id=?", (attempt_id,)).fetchone()
+    state, mode, kind = conn.execute("SELECT state, mode, kind FROM attempt WHERE id=?", (attempt_id,)).fetchone()
     s = attempts.summary(conn, attempt_id)
 
     top = st.columns([6, 1])
     top[0].progress((total - s["skipped"]) / total, text=f"Questão {pos}/{total} · {s['correct']} certas · {s['wrong']} erradas · {s['skipped']} sem resposta")
     top[1].button("Início", on_click=go_home)
+
+    score_panel(s, kind, state)
 
     if state != "in_progress":
         st.success(f"Attempt {'finalizado' if state == 'finished' else 'abandonado'}: {s['correct']}/{s['correct'] + s['wrong']} certas, {s['skipped']} puladas.")
