@@ -11,3 +11,8 @@
   .indet, .pop, .animate-pulse, .fa-spin { animation: none !important; }
 }
 body { @apply text-zinc-200 font-mono text-[13px]; }
+
+/* Celular: 16px em campos evita o zoom automático do iOS ao focar; touch-action tira o atraso do duplo toque. */
+@media (max-width: 767px) { input:not([type=radio]):not([type=checkbox]), textarea, select { font-size: 16px !important; } }
+button, a, select, summary { touch-action: manipulation; }
+html { -webkit-tap-highlight-color: transparent; }

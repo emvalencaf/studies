@@ -41,8 +41,8 @@ export default function Home() {
                   <b className="text-zinc-100">{a.exam_title ? `${a.course_slug} / ${a.exam_title}` : KIND[a.kind]}</b>
                   <span className="ml-2 text-zinc-500">{a.answered}/{a.total} · {a.started_at.slice(0, 16).replace('T', ' ')}</span>
                 </span>
-                <button onClick={() => nav(`/attempts/${a.id}`)} className="rounded border border-violet-600 px-3 py-1 text-violet-300 hover:bg-violet-950">Retomar</button>
-                <button onClick={() => abandon.mutate(a.id)} className="rounded border border-zinc-700 px-3 py-1 text-zinc-400 hover:bg-zinc-800">Abandonar</button>
+                <button onClick={() => nav(`/attempts/${a.id}`)} className="rounded border border-violet-600 px-3 py-2 text-violet-300 lg:py-1 hover:bg-violet-950">Retomar</button>
+                <button onClick={() => abandon.mutate(a.id)} className="rounded border border-zinc-700 px-3 py-2 text-zinc-400 hover:bg-zinc-800 lg:py-1">Abandonar</button>
               </li>
             ))}
           </ul>
@@ -53,23 +53,23 @@ export default function Home() {
         {certs.isPending || exams.isPending ? <Skeleton className="h-28" /> : (
           <div className="space-y-3">
             {certs.data!.length > 1 && (
-              <select value={cert ?? ''} onChange={(e) => { setCertId(Number(e.target.value)); setExamId(null) }} className="w-full rounded border border-zinc-700 bg-zinc-900 p-2">
+              <select value={cert ?? ''} onChange={(e) => { setCertId(Number(e.target.value)); setExamId(null) }} className="w-full rounded border border-zinc-700 bg-zinc-900 p-2.5">
                 {certs.data!.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )}
-            <select value={examId ?? exams.data![0]?.id ?? ''} onChange={(e) => setExamId(Number(e.target.value))} className="w-full rounded border border-zinc-700 bg-zinc-900 p-2">
+            <select value={examId ?? exams.data![0]?.id ?? ''} onChange={(e) => setExamId(Number(e.target.value))} className="w-full rounded border border-zinc-700 bg-zinc-900 p-2.5">
               {exams.data!.map((e) => <option key={e.id} value={e.id}>{e.course} / {e.title}</option>)}
             </select>
             <div className="flex flex-wrap gap-4">
               {(['exam', 'practice'] as const).map((m) => (
-                <label key={m} className="flex items-center gap-2">
+                <label key={m} className="flex items-center gap-2 py-1">
                   <input type="radio" checked={mode === m} onChange={() => setMode(m)} />
                   {m === 'exam' ? 'Exam (gabarito só ao finalizar)' : 'Practice (gabarito após cada resposta)'}
                 </label>
               ))}
-              <label className="flex items-center gap-2"><input type="checkbox" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />Embaralhar opções</label>
+              <label className="flex items-center gap-2 py-1"><input type="checkbox" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />Embaralhar opções</label>
             </div>
-            <button onClick={() => start.mutate()} disabled={start.isPending} className="rounded-md bg-violet-600 px-4 py-2 font-semibold text-white disabled:opacity-40">
+            <button onClick={() => start.mutate()} disabled={start.isPending} className="w-full rounded-md bg-violet-600 px-4 py-2.5 font-semibold text-white disabled:opacity-40 sm:w-auto">
               {start.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Criando…</> : 'Iniciar Exam'}
             </button>
             {start.error && <div className="text-rose-400">{start.error.message}</div>}

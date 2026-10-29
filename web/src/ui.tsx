@@ -8,7 +8,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function Panel({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 ${className}`}>
+    <section className={`overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 ${className}`}>
       <div className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{title}</div>
       {children}
     </section>

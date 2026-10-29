@@ -49,7 +49,7 @@ function ScoreBar({ score, open, mode }: { score: Score; open: boolean; mode: 'p
           {v && <div className={`px-3 ${v.tone}`}>▸ {v.text}</div>}
         </>
       ) : <div className="px-3 text-zinc-600">placar oculto</div>}
-      <button onClick={toggle} title="Mostrar ou esconder o placar" className="ml-auto mr-3 shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:text-white">
+      <button onClick={toggle} title="Mostrar ou esconder o placar" className="ml-auto mr-3 shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:text-white max-lg:py-1.5">
         <i className={`fa-solid ${show ? 'fa-eye' : 'fa-eye-slash'}`} /> placar
       </button>
     </div>
@@ -67,6 +67,7 @@ export default function AttemptPage() {
   const [why, setWhy] = useState('')
   const [elim, setElim] = useState<Record<string, string>>({}) // letra -> por que descartei
   const [editing, setEditing] = useState<string | null>(null) // balão de comentário aberto
+  const [mapOpen, setMapOpen] = useState(false) // no celular o mapa fica recolhido para a questão aparecer primeiro
   const shownAt = useRef(Date.now())
 
   useEffect(() => {
@@ -133,11 +134,16 @@ export default function AttemptPage() {
         </div>
       )}
       <div className="lg:flex">
-        <aside className="border-b border-zinc-800 p-4 lg:sticky lg:top-11 lg:h-[calc(100vh-2.75rem)] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-          <div className="mb-2 text-zinc-500">MAPA · {a?.map.length ?? '…'} questões</div>
-          <div className="grid grid-cols-10 gap-1 lg:grid-cols-8">
+        <aside className="border-b border-zinc-800 px-4 py-2 lg:sticky lg:top-11 lg:h-[calc(100vh-2.75rem)] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+          <button onClick={() => setMapOpen((o) => !o)} aria-expanded={mapOpen}
+            className="flex min-h-[2.75rem] w-full items-center justify-between text-zinc-500 lg:pointer-events-none lg:min-h-0">
+            <span>MAPA · {a?.map.length ?? '…'} questões{pos !== null && <span className="text-zinc-400 lg:hidden"> · Q{pos}</span>}</span>
+            <i className={`fa-solid fa-chevron-${mapOpen ? 'up' : 'down'} lg:hidden`} />
+          </button>
+          <div className={`${mapOpen ? '' : 'hidden'} pb-2 lg:mt-2 lg:block lg:pb-0`}>
+          <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-12 lg:grid-cols-8 lg:gap-1">
             {a?.map.map((m) => (
-              <button key={m.position} onClick={() => setPos(m.position)}
+              <button key={m.position} onClick={() => { setPos(m.position); setMapOpen(false) }}
                 className={`grid aspect-square place-items-center rounded-sm text-[10px] ${m.position === pos ? 'outline outline-2 outline-violet-400' : ''} ${
                   m.is_correct === true ? 'bg-emerald-600/70' : m.is_correct === false ? 'bg-rose-600/70' : m.answered ? 'bg-violet-700/60' : 'bg-zinc-800 text-zinc-500'}`}>
                 {m.position}
@@ -151,10 +157,11 @@ export default function AttemptPage() {
             <div><span className="mr-1 inline-block h-2 w-2 bg-zinc-800" />pendente</div>
           </div>
           {a?.state === 'in_progress' && (
-            <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-4 w-full rounded border border-zinc-700 py-2 text-zinc-300 hover:bg-zinc-800">
+            <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-4 w-full rounded border border-zinc-700 py-2.5 text-zinc-300 hover:bg-zinc-800">
               Finalizar Attempt
             </button>
           )}
+          </div>
         </aside>
 
         <section className="max-w-3xl flex-1 p-4 pb-24 lg:p-8">
@@ -175,7 +182,7 @@ export default function AttemptPage() {
                   return (
                     <div key={o.letter} className="relative">
                       <button onClick={() => choose(o.letter)} disabled={!editable && !q.reveal}
-                        className={`flex w-full gap-3 rounded-md border px-3 py-2.5 pr-12 text-left transition ${out && !ok ? 'opacity-50' : ''} ${
+                        className={`flex w-full gap-3 min-h-[44px] rounded-md border px-3 py-2.5 pr-14 text-left lg:pr-12 transition ${out && !ok ? 'opacity-50' : ''} ${
                           ok ? 'border-emerald-600 bg-emerald-950/40' : bad ? 'border-rose-600 bg-rose-950/40' : sel ? 'border-violet-500 bg-violet-950/60' : 'border-zinc-800 hover:bg-zinc-900'}`}>
                         <kbd className="h-fit rounded bg-zinc-800 px-1.5 text-zinc-300">{i + 1}</kbd>
                         <span className={`text-sm ${out ? 'line-through decoration-zinc-500' : ''}`}><b className="mr-2 text-zinc-400">{o.letter})</b><span dangerouslySetInnerHTML={html(o.html)} />
@@ -183,7 +190,7 @@ export default function AttemptPage() {
                       </button>
                       {editable && (
                         <button onClick={() => toggleElim(o.letter)} aria-pressed={out} title={out ? 'Desfazer descarte (Shift+' + (i + 1) + ')' : 'Descartar (Shift+' + (i + 1) + ')'} aria-label={`Descartar alternativa ${o.letter}`}
-                          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded ${out ? 'bg-zinc-700 text-amber-300' : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}>
+                          className={`absolute right-1.5 top-1 grid h-9 w-9 place-items-center rounded lg:right-2 lg:top-2 lg:h-7 lg:w-7 ${out ? 'bg-zinc-700 text-amber-300' : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}>
                           <i className="fa-solid fa-ban" />
                         </button>
                       )}
@@ -211,16 +218,16 @@ export default function AttemptPage() {
                 <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(CONF).map(([k, label]) => (
-                      <button key={k} onClick={() => setConf(conf === k ? '' : k)} className={`rounded border px-3 py-1 ${conf === k ? 'border-violet-500 bg-violet-950 text-violet-200' : 'border-zinc-700 text-zinc-400'}`}>{label}</button>
+                      <button key={k} onClick={() => setConf(conf === k ? '' : k)} className={`rounded border px-3 py-2 lg:py-1 ${conf === k ? 'border-violet-500 bg-violet-950 text-violet-200' : 'border-zinc-700 text-zinc-400'}`}>{label}</button>
                     ))}
                   </div>
                   <textarea value={why} onChange={(e) => setWhy(e.target.value)} rows={2} placeholder="Seu raciocínio (opcional)"
                     className="w-full rounded-md border border-zinc-700 bg-zinc-900 p-2 font-sans outline-none focus:border-violet-500" />
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => answer.mutate()} disabled={!picked.length || answer.isPending} className="rounded-md bg-violet-600 px-4 py-2 font-semibold text-white disabled:opacity-30">
+                  <div className="flex items-center gap-2 max-lg:sticky max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] max-lg:z-10 max-lg:-mx-4 max-lg:border-t max-lg:border-zinc-800 max-lg:bg-zinc-950/95 max-lg:px-4 max-lg:py-2 max-lg:backdrop-blur">
+                    <button onClick={() => answer.mutate()} disabled={!picked.length || answer.isPending} className="rounded-md bg-violet-600 px-4 py-2.5 font-semibold max-lg:flex-1 text-white disabled:opacity-30">
                       {answer.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Gravando…</> : 'Confirmar ⏎'}
                     </button>
-                    <span className="text-zinc-600">teclas 1–9 escolhem · Shift+1–9 descarta · Enter confirma · ←/→ navegam</span>
+                    <span className="hidden text-zinc-600 lg:inline">teclas 1–9 escolhem · Shift+1–9 descarta · Enter confirma · ←/→ navegam</span>
                   </div>
                   {answer.error && <div className="text-rose-400">{answer.error.message}</div>}
                 </div>
@@ -239,9 +246,9 @@ export default function AttemptPage() {
                   <div className="mt-2 font-sans text-sm leading-relaxed [&_a]:text-violet-300 [&_a]:underline [&_li]:ml-5 [&_li]:list-disc" dangerouslySetInnerHTML={html(q.explanation_html)} />
                 </details>
               )}
-              <div className="mt-6 flex gap-2">
-                <button onClick={() => setPos(pos! - 1)} disabled={pos! <= 1} className="rounded border border-zinc-700 px-3 py-1.5 disabled:opacity-30"><i className="fa-solid fa-arrow-left mr-1" />Anterior</button>
-                <button onClick={() => setPos(pos! + 1)} disabled={pos! >= q.total} className="rounded border border-zinc-700 px-3 py-1.5 disabled:opacity-30">Próxima<i className="fa-solid fa-arrow-right ml-1" /></button>
+              <div className="mt-6 grid grid-cols-2 gap-2 lg:flex">
+                <button onClick={() => setPos(pos! - 1)} disabled={pos! <= 1} className="rounded border border-zinc-700 px-3 py-2.5 disabled:opacity-30 lg:py-1.5"><i className="fa-solid fa-arrow-left mr-1" />Anterior</button>
+                <button onClick={() => setPos(pos! + 1)} disabled={pos! >= q.total} className="rounded border border-zinc-700 px-3 py-2.5 disabled:opacity-30 lg:py-1.5">Próxima<i className="fa-solid fa-arrow-right ml-1" /></button>
               </div>
             </>
           )}
