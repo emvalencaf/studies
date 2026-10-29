@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, type DashParams, type Dashboard as Data, type Grouped } from '../api'
-import { ErrorBox, Panel, pct, Skeleton } from '../ui'
+import { ErrorBox, Panel, pct, Sec, Skeleton } from '../ui'
 import StudyPulse from './StudyPulse'
 import { CalibrationDeep, Heatmap, Projection, Reasoning, Retention, ReviewQueue, TimeAndMode, TopicImpact } from './insights'
 
@@ -52,7 +52,7 @@ function AccTable({ rows, label }: { rows: Grouped[]; label: string }) {
     <table className="w-full"><thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal">{label}</th><th /><th className="text-right font-normal">Acerto</th><th className="w-14 text-right font-normal">n</th></tr></thead><tbody>
       {rows.map((r) => (
         <tr key={r.group} className="border-t border-zinc-800">
-          <td className="max-w-[20rem] truncate py-1.5 pr-2" title={String(r.group)}>{short(String(r.group))}</td>
+          <td className="max-w-[20rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words py-1.5 pr-2" title={String(r.group)}>{short(String(r.group))}</td>
           <td className="w-24"><Bar value={r.accuracy} color={r.accuracy >= READY_RATIO ? 'bg-emerald-500' : 'bg-amber-500'} /></td>
           <td className="w-12 text-right">{pct(r.accuracy)}</td><td className="text-right text-zinc-500">{r.n}</td>
         </tr>
@@ -125,13 +125,13 @@ function Topics({ t }: { t: Data['topics'] }) {
   if (!t.nodes.length) return <span className="text-zinc-500">Sem temas. Rode <code>uv run python -m studies.load</code> para calculá-los.</span>
   const nb = focus ? t.edges.filter((e) => e.a === focus || e.b === focus).map((e) => ({ ...e, other: e.a === focus ? e.b : e.a })) : []
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
       <div>
         <div className="mb-1 text-xs text-zinc-500">Tema = assunto da documentação AWS citada na explicação. Clique para ver vizinhos.</div>
         <table className="w-full"><thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal">Tema</th><th className="text-right font-normal">Princ.</th><th className="text-right font-normal">Citam</th><th className="text-right font-normal">Acerto</th></tr></thead><tbody>
           {t.nodes.map((n) => (
             <tr key={n.topic} onClick={() => setFocus(n.topic === focus ? null : n.topic)} className={`cursor-pointer border-t border-zinc-800 ${n.topic === focus ? 'bg-violet-500/10' : ''}`}>
-              <td className="max-w-[14rem] truncate py-1.5 pr-2" title={n.topic}>{short(n.topic)}</td>
+              <td className="max-w-[14rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words py-1.5 pr-2" title={n.topic}>{short(n.topic)}</td>
               <td className="text-right">{n.primary}</td><td className="text-right">{n.total}</td><td className="text-right">{pct(n.accuracy)}</td>
             </tr>
           ))}
@@ -142,7 +142,7 @@ function Topics({ t }: { t: Data['topics'] }) {
         <table className="w-full"><tbody>
           {(focus ? nb.map((e) => ({ k: e.other, label: short(e.other), ...e })) : t.edges.slice(0, 15).map((e) => ({ k: `${e.a}|${e.b}`, label: `${short(e.a)} + ${short(e.b)}`, ...e }))).map((e) => (
             <tr key={e.k} className="border-t border-zinc-800">
-              <td className="max-w-[16rem] truncate py-1.5 pr-2" title={e.label}>{e.label}</td>
+              <td className="max-w-[16rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words py-1.5 pr-2" title={e.label}>{e.label}</td>
               <td className="w-16 text-right">{e.questions} Q</td><td className="w-14 text-right text-zinc-500">{pct(e.accuracy)}</td>
             </tr>
           ))}
@@ -171,7 +171,7 @@ export default function Dashboard() {
   const toggleKind = (k: string) => setP((o) => ({ ...o, kinds: o.kinds.includes(k) ? o.kinds.filter((x) => x !== k) : [...o.kinds, k] }))
   if (error) return <ErrorBox error={error} retry={() => refetch()} />
   if (!d) return (
-    <div className="grid gap-4 p-4 lg:grid-cols-6 lg:p-6" aria-busy="true">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 lg:grid-cols-6 lg:p-6" aria-busy="true">
       <Skeleton className="h-32 lg:col-span-2" /><Skeleton className="h-32 lg:col-span-2" /><Skeleton className="h-32 lg:col-span-2" />
       <Skeleton className="h-40 lg:col-span-3" /><Skeleton className="h-40 lg:col-span-3" />
     </div>
@@ -179,7 +179,7 @@ export default function Dashboard() {
   const { readiness: r, streaks: st } = d
   const total = d.consistency
   return (
-    <div className="grid gap-4 p-4 lg:grid-cols-6 lg:p-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 lg:grid-cols-6 lg:p-6">
       <div className="flex flex-wrap items-center gap-2 lg:col-span-6">
         {WINDOWS.map(([k, l]) => <Chip key={k} on={p.window === k} onClick={() => setP((o) => ({ ...o, window: k }))}>{l}</Chip>)}
         <span className="mx-1 text-zinc-700">|</span>
@@ -250,8 +250,8 @@ export default function Dashboard() {
           <table className="w-full"><tbody>
             {d.best_per_exam.map((b) => (
               <tr key={b.exam_title} className="border-t border-zinc-800">
-                <td className="max-w-[16rem] truncate py-1.5 pr-2">{b.exam_title}</td>
-                <td className="w-24"><div className="h-1.5 rounded bg-zinc-800"><div className={`h-1.5 rounded ${b.score >= READY_RATIO ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${b.score * 100}%` }} /></div></td>
+                <td className="max-w-[16rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words py-1.5 pr-2">{b.exam_title}</td>
+                <td className="w-24 max-lg:w-14"><div className="h-1.5 rounded bg-zinc-800"><div className={`h-1.5 rounded ${b.score >= READY_RATIO ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${b.score * 100}%` }} /></div></td>
                 <td className="w-12 text-right">{pct(b.score)}</td>
               </tr>
             ))}
@@ -268,13 +268,13 @@ export default function Dashboard() {
           {TABS.map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm ${tab === t ? 'border-b-2 border-violet-500 text-zinc-100' : 'text-zinc-500'}`}>{t}</button>)}
         </div>
         {tab === 'Prioridades' && (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
             <Panel title="Fila de revisão"><ReviewQueue rows={d.insights.review_queue} certId={d.cert_id} /></Panel>
             <Panel title="Temas fracos por impacto"><TopicImpact nodes={d.topics.nodes} weak={d.insights.weak_neighbors} /></Panel>
           </div>
         )}
         {tab === 'Progressão' && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <Panel title="Acerto ao longo do tempo"><Progression rows={d.progression} /></Panel>
             <Panel title="Acerto por">
               <div className="mb-2 flex flex-wrap gap-1">{GRANS.map(([k, l]) => <Chip key={k} on={gran === k} onClick={() => setGran(k)}>{l}</Chip>)}</div>
@@ -304,7 +304,7 @@ export default function Dashboard() {
         )}
         {tab === 'Ritmo' && <div className="mt-4"><TimeAndMode ins={d.insights} /></div>}
         {tab === 'Evolução' && (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
             <Panel title="Retenção por intervalo (todo o histórico)"><Retention rows={d.insights.retention} /></Panel>
             <Panel title="Section × semana"><Heatmap rows={d.insights.heatmap} /></Panel>
           </div>
@@ -320,11 +320,11 @@ export default function Dashboard() {
         )}
         {tab === 'Temas' && <Panel title="Temas"><Topics t={d.topics} /></Panel>}
         {tab === 'Questions' && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             <Panel title="Mais erradas">
               {d.most_wrong.length ? (
                 <table className="w-full"><thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal">Question</th><th className="font-normal">Section</th><th className="text-right font-normal">Erros</th><th className="text-right font-normal">Taxa</th></tr></thead><tbody>
-                  {d.most_wrong.map((m) => <tr key={m.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{m.question_id}</td><td className="max-w-[12rem] truncate pr-2" title={m.section}>{m.section}</td><td className="text-right">{m.wrong}/{m.answers}</td><td className="text-right">{pct(m.error_rate)}</td></tr>)}
+                  {d.most_wrong.map((m) => <tr key={m.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{m.question_id}</td><td className="max-w-[12rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words pr-2" title={m.section}><Sec text={m.section} /></td><td className="text-right">{m.wrong}/{m.answers}</td><td className="text-right">{pct(m.error_rate)}</td></tr>)}
                 </tbody></table>
               ) : <span className="text-zinc-500">Nenhum erro na janela.</span>}
             </Panel>
@@ -332,7 +332,7 @@ export default function Dashboard() {
               <p className="mb-2 text-xs text-zinc-600">Acerto que ainda não é conhecimento.</p>
               {d.lucky_guesses.length ? (
                 <table className="w-full"><tbody>
-                  {d.lucky_guesses.map((m) => <tr key={m.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{m.question_id}</td><td className="max-w-[14rem] truncate pr-2" title={m.section}>{m.section}</td><td className="text-right">{m.times}×</td></tr>)}
+                  {d.lucky_guesses.map((m) => <tr key={m.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{m.question_id}</td><td className="max-w-[14rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words pr-2" title={m.section}><Sec text={m.section} /></td><td className="text-right">{m.times}×</td></tr>)}
                 </tbody></table>
               ) : <span className="text-zinc-500">Nenhuma.</span>}
             </Panel>

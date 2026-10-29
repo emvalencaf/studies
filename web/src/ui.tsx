@@ -8,7 +8,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function Panel({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className={`overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 ${className}`}>
+    <section className={`min-w-0 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 ${className}`}>
       <div className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">{title}</div>
       {children}
     </section>
@@ -22,4 +22,9 @@ export function ErrorBox({ error, retry }: { error: Error; retry?: () => void })
       {retry && <button onClick={retry} className="ml-3 underline">tentar de novo</button>}
     </div>
   )
+}
+
+// Nome longo de Section ("Domain 1: ...") vira só o prefixo no celular; o nome completo fica no tooltip da célula.
+export function Sec({ text }: { text: string }) {
+  return <><span className="whitespace-nowrap lg:hidden">{text.split(':')[0]}</span><span className="max-lg:hidden">{text}</span></>
 }

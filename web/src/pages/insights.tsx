@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { post, type Insights, type Dashboard as Data } from '../api'
-import { Panel, pct } from '../ui'
+import { Panel, pct, Sec } from '../ui'
 
 const READY = 0.8
 const CONF = { confident: 'Confiante', educated_guess: 'Educated guess', guess: 'Chute', unmarked: 'Sem marcação' } as Record<string, string>
@@ -53,7 +53,7 @@ export function ReviewQueue({ rows, certId }: { rows: Insights['review_queue']; 
           {rows.map((r) => (
             <tr key={r.question_id} className="border-t border-zinc-800">
               <td className="py-1.5 pr-2 text-zinc-400">{r.question_id}</td>
-              <td className="max-w-[14rem] truncate pr-2" title={r.section}>{r.section}</td>
+              <td className="max-w-[14rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words pr-2" title={r.section}><Sec text={r.section} /></td>
               <td className="pr-2">{LEVEL[r.level] ?? r.level}</td>
               <td className="text-right text-zinc-400">{r.wrong}/{r.answers} · {r.lucky} · {r.confident_wrong}</td>
               <td className="text-right font-bold text-amber-400">{r.score.toFixed(1)}</td>
@@ -74,7 +74,7 @@ export function TopicImpact({ nodes, weak }: { nodes: Data['topics']['nodes']; w
   const x = (a: number) => 36 + (1 - a) * (W - 50), y = (p: number) => H - 24 - (p / maxS) * (H - 40)
   const rank = [...pts].filter((n) => n.impact != null).sort((a, b) => b.impact! - a.impact!).slice(0, 8)
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
       <div>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Taxa de erro por peso do tema">
           <line x1="36" x2={W - 10} y1={H - 24} y2={H - 24} stroke="#3f3f46" /><line x1="36" x2="36" y1="8" y2={H - 24} stroke="#3f3f46" />
@@ -89,7 +89,7 @@ export function TopicImpact({ nodes, weak }: { nodes: Data['topics']['nodes']; w
         <table className="w-full"><tbody>
           {rank.map((n) => (
             <tr key={n.topic} className="border-t border-zinc-800 align-top">
-              <td className="py-1.5 pr-2"><div className="max-w-[16rem] truncate" title={n.topic}>{short(n.topic)}</div>
+              <td className="py-1.5 pr-2"><div className="max-w-[16rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words" title={n.topic}>{short(n.topic)}</div>
                 {weak[n.topic] && <div className="text-xs text-zinc-500">vizinhos fracos: {weak[n.topic].slice(0, 3).map(short).join(', ')}{weak[n.topic].length > 3 ? ` +${weak[n.topic].length - 3}` : ''}</div>}</td>
               <td className="w-12 text-right">{pct(n.accuracy)}</td><td className="w-16 text-right text-amber-400">{n.impact!.toFixed(1)}</td>
             </tr>
@@ -106,13 +106,13 @@ export function CalibrationDeep({ ins }: { ins: Insights }) {
   const lv = ['confident', 'educated_guess', 'guess']
   const tr = ins.calibration_trend.filter((t) => t.confident_n > 0)
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
       <Panel title="Calibração por Section">
         {sections.length ? (
           <table className="w-full"><thead><tr className="text-left text-xs text-zinc-500"><th className="font-normal">Section</th>{lv.map((l) => <th key={l} className="text-right font-normal">{CONF[l]}</th>)}</tr></thead><tbody>
             {sections.map((s) => (
               <tr key={s} className="border-t border-zinc-800">
-                <td className="max-w-[14rem] truncate py-1.5 pr-2" title={s}>{s}</td>
+                <td className="max-w-[14rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words py-1.5 pr-2" title={s}><Sec text={s} /></td>
                 {lv.map((l) => { const r = ins.calibration_by_section.find((x) => x.section === s && x.level === l); return <td key={l} className="text-right">{r ? <>{pct(r.accuracy)} <span className="text-xs text-zinc-600">{r.n}</span></> : '–'}</td> })}
               </tr>
             ))}
@@ -142,7 +142,7 @@ export function CalibrationDeep({ ins }: { ins: Insights }) {
 export function TimeAndMode({ ins }: { ins: Insights }) {
   const t = ins.time, max = Math.max(...t.bins.map((b) => b.n), 1)
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
       <Panel title="Tempo × acerto">
         {t.bins.some((b) => b.n) ? (
           <>
@@ -165,7 +165,7 @@ export function TimeAndMode({ ins }: { ins: Insights }) {
           <>
             <div className="mb-1 mt-3 text-xs text-zinc-500">Questions lentas (mediana &gt; 1,5× a geral)</div>
             <table className="w-full"><tbody>
-              {t.slow.map((q) => <tr key={q.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{q.question_id}</td><td className="max-w-[12rem] truncate pr-2" title={q.section}>{q.section}</td><td className="text-right">{secs(q.median_seconds)}</td><td className="w-12 text-right text-zinc-500">{pct(q.accuracy)}</td></tr>)}
+              {t.slow.map((q) => <tr key={q.question_id} className="border-t border-zinc-800"><td className="py-1.5 pr-2 text-zinc-400">{q.question_id}</td><td className="max-w-[12rem] truncate max-lg:max-w-none max-lg:whitespace-normal max-lg:break-words pr-2" title={q.section}><Sec text={q.section} /></td><td className="text-right">{secs(q.median_seconds)}</td><td className="w-12 text-right text-zinc-500">{pct(q.accuracy)}</td></tr>)}
             </tbody></table>
           </>
         )}
@@ -210,20 +210,22 @@ export function Heatmap({ rows }: { rows: Insights['heatmap'] }) {
   if (!rows.length) return none()
   const buckets = [...new Set(rows.map((r) => r.bucket))].sort(), sections = [...new Set(rows.map((r) => r.section))].sort()
   const color = (a: number) => (a >= READY ? 'bg-emerald-500' : a >= 0.6 ? 'bg-amber-500' : 'bg-rose-500')
+  // No celular a tabela cabe na tela: só as 8 semanas mais recentes, datas na vertical e células que encolhem.
+  const old = (i: number) => (i < buckets.length - 8 ? 'max-lg:hidden' : '')
   return (
-    <div className="overflow-x-auto">
-      <table className="text-xs"><thead><tr><th />{buckets.map((b) => <th key={b} className="px-1 font-normal text-zinc-500">{dm(b)}</th>)}</tr></thead><tbody>
+    <div className="lg:overflow-x-auto">
+      <table className="w-full table-fixed text-xs lg:w-auto lg:table-auto"><thead><tr><th className="w-[28%] lg:w-auto" />{buckets.map((b, i) => <th key={b} className={`px-0.5 font-normal text-zinc-500 max-lg:h-10 max-lg:[writing-mode:vertical-rl] max-lg:rotate-180 max-lg:text-[10px] lg:px-1 ${old(i)}`}>{dm(b)}</th>)}</tr></thead><tbody>
         {sections.map((s) => (
           <tr key={s}>
-            <td className="max-w-[14rem] truncate pr-3 text-zinc-400" title={s}>{s}</td>
-            {buckets.map((b) => {
+            <td className="pr-2 text-zinc-400 max-lg:break-words max-lg:text-[10px] max-lg:leading-tight lg:max-w-[14rem] lg:truncate lg:pr-3" title={s}><Sec text={short(s)} /></td>
+            {buckets.map((b, i) => {
               const r = rows.find((x) => x.section === s && x.bucket === b)
-              return <td key={b} className="p-0.5">{r ? <div className={`h-6 w-9 rounded text-center leading-6 text-zinc-950 ${color(r.accuracy)}`} style={{ opacity: 0.4 + Math.min(r.n, 10) / 10 * 0.6 }} title={`${s} · semana de ${dm(b)}: ${pct(r.accuracy)} em ${r.n} Answers`}>{Math.round(r.accuracy * 100)}</div> : <div className="h-6 w-9 rounded bg-zinc-900" />}</td>
+              return <td key={b} className={`p-0.5 ${old(i)}`}>{r ? <div className={`h-6 w-full rounded text-center text-[10px] leading-6 text-zinc-950 lg:w-9 lg:text-xs ${color(r.accuracy)}`} style={{ opacity: 0.4 + Math.min(r.n, 10) / 10 * 0.6 }} title={`${s} · semana de ${dm(b)}: ${pct(r.accuracy)} em ${r.n} Answers`}>{Math.round(r.accuracy * 100)}</div> : <div className="h-6 w-full rounded bg-zinc-900 lg:w-9" />}</td>
             })}
           </tr>
         ))}
       </tbody></table>
-      <Note>Células vazias = Section não estudada na semana. Cor = acerto; opacidade = volume de Answers.</Note>
+      <Note>Células vazias = Section não estudada na semana. Cor = acerto; opacidade = volume de Answers.<span className="lg:hidden"> No celular, as 8 semanas mais recentes.</span></Note>
     </div>
   )
 }
