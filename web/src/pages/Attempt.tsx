@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
 import { useEffect, useRef, useState } from 'react'
+import { joinReasoning, splitReasoning } from '../reasoning'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, post, type AttemptInfo, type Question, type Score } from '../api'
 import { ErrorBox, pct, Skeleton } from '../ui'
@@ -64,6 +65,8 @@ export default function AttemptPage() {
   const [picked, setPicked] = useState<string[]>([])
   const [conf, setConf] = useState('')
   const [why, setWhy] = useState('')
+  const [elim, setElim] = useState<Record<string, string>>({}) // letra -> por que descartei
+  const [editing, setEditing] = useState<string | null>(null) // balão de comentário aberto
   const shownAt = useRef(Date.now())
 
   useEffect(() => {
@@ -77,19 +80,28 @@ export default function AttemptPage() {
 
   useEffect(() => {
     if (!q) return
-    setPicked(q.selected); setConf(q.confidence ?? ''); setWhy(q.reasoning ?? ''); shownAt.current = Date.now()
+    const r = splitReasoning(q.reasoning)
+    setPicked(q.selected); setConf(q.confidence ?? ''); setWhy(r.why); setElim(r.elim); setEditing(null); shownAt.current = Date.now()
   }, [q])
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['attempt', aid] }); qc.invalidateQueries({ queryKey: ['question', aid] }); qc.invalidateQueries({ queryKey: ['running'] }) }
   const answer = useMutation({
-    mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: why || null, time_seconds: (Date.now() - shownAt.current) / 1000 }),
+    mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: (Date.now() - shownAt.current) / 1000 }),
     onSuccess: () => { refresh(); if (q?.mode === 'exam' && pos! < q.total) setPos(pos! + 1) },
   })
   const finish = useMutation({ mutationFn: () => post(`/attempts/${aid}/finish`), onSuccess: refresh })
 
   const editable = !!q && q.state === 'in_progress' && (q.mode === 'exam' || !q.answered)
+  const toggleElim = (letter: string) => {
+    if (!editable) return
+    if (letter in elim) { setElim(({ [letter]: _, ...rest }) => rest); setEditing(null); return }
+    setElim((cur) => ({ ...cur, [letter]: '' }))
+    setPicked((cur) => cur.filter((l) => l !== letter)) // descartada não pode estar marcada
+    setEditing(letter)
+  }
   const choose = (letter: string) => {
     if (!editable || !q) return
+    if (letter in elim) setElim(({ [letter]: _, ...rest }) => rest) // marcar uma descartada desfaz o descarte
     setPicked((cur) => (q.multi ? (cur.includes(letter) ? cur.filter((l) => l !== letter) : [...cur, letter]) : [letter]))
   }
 
@@ -97,6 +109,8 @@ export default function AttemptPage() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest('input, textarea, select')) return
       if (!q) return
+      const digit = /^Digit([1-9])$/.exec(e.code)
+      if (e.shiftKey && digit) { e.preventDefault(); const o = q.options[Number(digit[1]) - 1]; if (o) toggleElim(o.letter); return } // Shift+n descarta
       const i = Number(e.key) - 1
       if (i >= 0 && i < q.options.length) choose(q.options[i].letter)
       else if (e.key === 'Enter' && editable && picked.length && !answer.isPending) answer.mutate()
@@ -157,14 +171,38 @@ export default function AttemptPage() {
                   const sel = picked.includes(o.letter)
                   const ok = q.reveal && q.correct?.includes(o.letter)
                   const bad = q.reveal && sel && !ok
+                  const out = o.letter in elim
                   return (
-                    <button key={o.letter} onClick={() => choose(o.letter)} disabled={!editable && !q.reveal}
-                      className={`flex w-full gap-3 rounded-md border px-3 py-2.5 text-left transition ${
-                        ok ? 'border-emerald-600 bg-emerald-950/40' : bad ? 'border-rose-600 bg-rose-950/40' : sel ? 'border-violet-500 bg-violet-950/60' : 'border-zinc-800 hover:bg-zinc-900'}`}>
-                      <kbd className="h-fit rounded bg-zinc-800 px-1.5 text-zinc-300">{i + 1}</kbd>
-                      <span className="text-sm"><b className="mr-2 text-zinc-400">{o.letter})</b><span dangerouslySetInnerHTML={html(o.html)} />
-                        {ok && <i className="fa-solid fa-check ml-2 text-emerald-400" />}{bad && <i className="fa-solid fa-xmark ml-2 text-rose-400" />}</span>
-                    </button>
+                    <div key={o.letter} className="relative">
+                      <button onClick={() => choose(o.letter)} disabled={!editable && !q.reveal}
+                        className={`flex w-full gap-3 rounded-md border px-3 py-2.5 pr-12 text-left transition ${out && !ok ? 'opacity-50' : ''} ${
+                          ok ? 'border-emerald-600 bg-emerald-950/40' : bad ? 'border-rose-600 bg-rose-950/40' : sel ? 'border-violet-500 bg-violet-950/60' : 'border-zinc-800 hover:bg-zinc-900'}`}>
+                        <kbd className="h-fit rounded bg-zinc-800 px-1.5 text-zinc-300">{i + 1}</kbd>
+                        <span className={`text-sm ${out ? 'line-through decoration-zinc-500' : ''}`}><b className="mr-2 text-zinc-400">{o.letter})</b><span dangerouslySetInnerHTML={html(o.html)} />
+                          {ok && <i className="fa-solid fa-check ml-2 text-emerald-400" />}{bad && <i className="fa-solid fa-xmark ml-2 text-rose-400" />}</span>
+                      </button>
+                      {editable && (
+                        <button onClick={() => toggleElim(o.letter)} aria-pressed={out} title={out ? 'Desfazer descarte (Shift+' + (i + 1) + ')' : 'Descartar (Shift+' + (i + 1) + ')'} aria-label={`Descartar alternativa ${o.letter}`}
+                          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded ${out ? 'bg-zinc-700 text-amber-300' : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}>
+                          <i className="fa-solid fa-ban" />
+                        </button>
+                      )}
+                      {out && editing !== o.letter && (
+                        <button onClick={() => editable && setEditing(o.letter)} disabled={!editable}
+                          className="ml-10 mt-0.5 block text-left text-xs italic text-amber-300/80">
+                          {elim[o.letter] ? `descartei: ${elim[o.letter]}` : editable ? 'descartada · por quê? (clique)' : 'descartada'}
+                        </button>
+                      )}
+                      {editing === o.letter && editable && (
+                        <div className="absolute right-2 top-full z-10 mt-1 w-72 max-w-[90%] rounded-lg border border-amber-500/60 bg-zinc-900 p-2 shadow-lg">
+                          <span className="absolute -top-1.5 right-3 h-3 w-3 rotate-45 border-l border-t border-amber-500/60 bg-zinc-900" />
+                          <input autoFocus value={elim[o.letter] ?? ''} onChange={(e) => setElim((c) => ({ ...c, [o.letter]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setEditing(null) } }} onBlur={() => setEditing(null)}
+                            placeholder={`Por que descartou ${o.letter})? (Enter fecha)`}
+                            className="relative w-full rounded border border-zinc-700 bg-zinc-950 p-1.5 font-sans text-sm outline-none focus:border-amber-400" />
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -182,7 +220,7 @@ export default function AttemptPage() {
                     <button onClick={() => answer.mutate()} disabled={!picked.length || answer.isPending} className="rounded-md bg-violet-600 px-4 py-2 font-semibold text-white disabled:opacity-30">
                       {answer.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Gravando…</> : 'Confirmar ⏎'}
                     </button>
-                    <span className="text-zinc-600">teclas 1–9 escolhem · Enter confirma · ←/→ navegam</span>
+                    <span className="text-zinc-600">teclas 1–9 escolhem · Shift+1–9 descarta · Enter confirma · ←/→ navegam</span>
                   </div>
                   {answer.error && <div className="text-rose-400">{answer.error.message}</div>}
                 </div>
