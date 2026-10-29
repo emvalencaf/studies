@@ -255,3 +255,24 @@ def test_projection_needs_three_and_trends_up():
     assert metrics.projection(s.head(2)) is None
     p = metrics.projection(s)
     assert round(p["predicted"], 2) == 0.7 and p["eta_days"] == 7 and p["slope_per_week"] > 0.09
+
+
+def test_study_activity_streak_week_comparison_and_time():
+    rows = [(i, d, True, None, "S") for i, d in enumerate(
+        ["2026-10-01", "2026-10-02", "2026-10-02", "2026-10-03", "2026-10-22", "2026-10-23", "2026-10-23", "2026-10-24"])]
+    df = make_df(rows)
+    now = pd.Timestamp("2026-10-24 18:00", tz=TZ)
+    a = metrics.study_activity(df, now=now)
+    assert a["today"] == {"questions": 1, "seconds": 30.0}
+    assert a["last_week"]["day"].startswith("2026-10-17") and a["last_week"]["questions"] == 0  # dentro do histórico, sem estudo
+    assert a["streak"] == {"current": 3, "longest": 3, "today_done": True}
+    assert a["active_days"] == 6 and a["avg_per_day"] == pytest.approx(8 / 24) and a["avg_per_active_day"] == pytest.approx(8 / 6)
+    assert a["week"] == {"current": 4, "previous": 0} and len(a["days"]) == 14 and a["days"][-1]["questions"] == 1
+
+
+def test_study_activity_keeps_streak_alive_before_studying_today_and_hides_missing_last_week():
+    df = make_df([(1, "2026-10-22", True, None, "S"), (2, "2026-10-23", True, None, "S")])
+    a = metrics.study_activity(df, now=pd.Timestamp("2026-10-24 08:00", tz=TZ))
+    assert a["streak"] == {"current": 2, "longest": 2, "today_done": False} and a["today"]["questions"] == 0
+    assert a["last_week"] is None and a["week"]["previous"] is None  # o histórico começa depois de 7 dias atrás
+    assert metrics.study_activity(df.iloc[0:0], now=pd.Timestamp("2026-10-24", tz=TZ))["streak"]["current"] == 0

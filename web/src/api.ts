@@ -67,10 +67,19 @@ export type Dashboard = {
   progression: { bucket: string; segment: 'Inéditas' | 'Repetições'; n: number; accuracy: number | null; rolling: number | null }[]
   by: Partial<Record<'course' | 'exam' | 'section' | 'topic' | 'question', Grouped[]>>
   best_window: { bucket: string; accuracy: number; n: number } | null
+  activity: Activity
   pace: { days: { day: string; questions: number }[]; median_seconds: number | null; mean_seconds: number | null }
   topics: { nodes: { topic: string; primary: number; total: number; answers: number; accuracy: number | null; share?: number; impact?: number | null }[]; edges: { a: string; b: string; questions: number; answers?: number; accuracy?: number | null }[] }
   most_wrong: { question_id: number; answers: number; wrong: number; section: string; course: string; error_rate: number }[]
   lucky_guesses: { question_id: number; times: number; section: string; course: string }[]
+}
+export type Activity = {
+  today: { questions: number; seconds: number }
+  last_week: { day: string; questions: number; seconds: number } | null
+  days: { day: string; questions: number; seconds: number }[]
+  avg_per_day: number | null; avg_per_active_day: number | null; active_days: number
+  streak: { current: number; longest: number; today_done: boolean }
+  week: { current: number; previous: number | null }
 }
 export type Insights = {
   review_queue: { question_id: number; level: string; score: number; answers: number; wrong: number; lucky: number; confident_wrong: number; section: string; course: string }[]

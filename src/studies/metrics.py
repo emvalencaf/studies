@@ -182,6 +182,54 @@ def pace(df: pd.DataFrame) -> pd.DataFrame:
     return t.rename_axis("day").reset_index()
 
 
+def study_activity(df: pd.DataFrame, now: pd.Timestamp | None = None, days: int = 14) -> dict:
+    """Quanto você está estudando: Questions e tempo por dia, sequência de dias e hoje vs. o mesmo dia da semana passada.
+    Usa o histórico todo (qualquer kind); o tempo é a soma de time_seconds das Answers do dia (as sem tempo contam 0)."""
+    now = now or pd.Timestamp.now(tz=df["answered_at"].dt.tz if len(df) else None)
+    today = now.tz_localize(None).normalize()
+    if df.empty:
+        return {"today": {"questions": 0, "seconds": 0.0}, "last_week": None, "days": [], "avg_per_day": None,
+                "avg_per_active_day": None, "active_days": 0, "streak": {"current": 0, "longest": 0, "today_done": False},
+                "week": {"current": 0, "previous": None}}
+    d = df.assign(day=df["answered_at"].dt.tz_localize(None).dt.normalize())
+    per = d.groupby("day").agg(questions=("answer_id", "size"), seconds=("time_seconds", "sum"))
+    first = per.index.min()
+    span = pd.date_range(first, max(today, per.index.max()), freq="D")
+    per = per.reindex(span, fill_value=0)
+    per["seconds"] = per["seconds"].astype(float)
+    q, sec = per["questions"], per["seconds"]
+    week_ago = today - pd.Timedelta(days=7)
+
+    def sum_days(start, end):  # [start, end] inclusivo
+        return int(q[(q.index >= start) & (q.index <= end)].sum())
+
+    active = q > 0
+    longest = run = 0
+    for a in active:
+        run = run + 1 if a else 0
+        longest = max(longest, run)
+    # A sequência continua viva se hoje ainda não teve estudo mas ontem teve (o dia não acabou).
+    end = today if active.get(today, False) else today - pd.Timedelta(days=1)
+    current = 0
+    while end >= first and active.get(end, False):
+        current += 1
+        end -= pd.Timedelta(days=1)
+    elapsed = per.loc[:today]
+    return {
+        "today": {"questions": int(q.get(today, 0)), "seconds": float(sec.get(today, 0.0))},
+        "last_week": {"day": week_ago.isoformat(), "questions": int(q.get(week_ago, 0)), "seconds": float(sec.get(week_ago, 0.0))}
+        if week_ago >= first else None,  # sem histórico naquele dia, não há com o que comparar
+        "days": [{"day": i.isoformat(), "questions": int(r.questions), "seconds": float(r.seconds)}
+                 for i, r in per.loc[today - pd.Timedelta(days=days - 1):today].iterrows()],
+        "avg_per_day": float(elapsed["questions"].mean()),
+        "avg_per_active_day": float(elapsed.loc[elapsed["questions"] > 0, "questions"].mean()) if (elapsed["questions"] > 0).any() else None,
+        "active_days": int((elapsed["questions"] > 0).sum()),
+        "streak": {"current": current, "longest": longest, "today_done": bool(active.get(today, False))},
+        "week": {"current": sum_days(today - pd.Timedelta(days=6), today),
+                 "previous": sum_days(today - pd.Timedelta(days=13), today - pd.Timedelta(days=7)) if today - pd.Timedelta(days=13) >= first else None},
+    }
+
+
 def consistency(df: pd.DataFrame, k: int = 3) -> pd.DataFrame:
     """Nível de Consistency por Question, sobre todas as Answers dela em ordem cronológica.
     - few_data: menos de k Answers.

@@ -255,6 +255,7 @@ def create_app(conn=None, token: str | None = None, cors_origins: list[str] | No
             "progression": _records(metrics.progression(df, freq, roll)),
             "by": {g: _records(t) for g, t in grans.items()},
             "best_window": None if bw is None else {**bw, "bucket": bw["bucket"].isoformat()},
+            "activity": metrics.study_activity(df_all),
             "pace": {"days": _records(pace), "median_seconds": None if tm.empty else float(tm.median()),
                      "mean_seconds": None if tm.empty else float(tm.mean())},
             "consistency_by_section": _records(metrics.consistency_summary(cons, "section")),

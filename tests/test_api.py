@@ -116,6 +116,8 @@ def test_dashboard_with_and_without_data(client):
     assert len(d["scores"]) == 1 and d["calibration"]
     assert d["accuracy_new"] is not None and d["progression"] and d["by"]["section"] and d["pace"]["days"]
     assert d["most_wrong"] and d["consistency_by_section"] and "nodes" in d["topics"]
+    act = d["activity"]
+    assert act["today"]["questions"] == 5 and act["streak"]["current"] == 1 and act["streak"]["today_done"] and act["days"][-1]["questions"] == 5
     w = client.get(f"/dashboard/{cert}?window=7d&freq=W&roll=2", headers=H).json()
     assert w["answers"] == 5 and w["window"]["start"] < w["window"]["end"]
 

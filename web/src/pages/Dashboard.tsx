@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, type DashParams, type Dashboard as Data, type Grouped } from '../api'
 import { ErrorBox, Panel, pct, Skeleton } from '../ui'
+import StudyPulse from './StudyPulse'
 import { CalibrationDeep, Heatmap, Projection, Reasoning, Retention, ReviewQueue, TimeAndMode, TopicImpact } from './insights'
 
 const READY_RATIO = 0.8 // espelha metrics.READY_RATIO; a API entrega só quantos Exams seguidos estão na meta
@@ -191,6 +192,7 @@ export default function Dashboard() {
         </label>
         {d.window && <span className="ml-auto text-xs text-zinc-500">{new Date(d.window.start).toLocaleDateString('pt-BR')} a {new Date(d.window.end).toLocaleDateString('pt-BR')}</span>}
       </div>
+      <Panel title="Ritmo de estudo" className="lg:col-span-6"><StudyPulse a={d.activity} /></Panel>
       <Panel title="Janela" className="lg:col-span-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat label="Acerto na janela" value={pct(d.trend.current)} hint={d.trend.delta == null ? undefined : `${d.trend.delta >= 0 ? '+' : ''}${Math.round(d.trend.delta * 100)} pp vs janela anterior`} />
