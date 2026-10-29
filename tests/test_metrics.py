@@ -215,3 +215,43 @@ def test_readiness_needs_consecutive_recent_attempts():
     r = metrics.readiness(scores([0.5, 0.9, 0.85]))
     assert r["streak"] == 2 and not r["ready"]
     assert not metrics.readiness(scores([0.9, 0.9]))["ready"]
+
+
+def _df(rows):
+    import pandas as pd
+    d = pd.DataFrame(rows, columns=["answer_id", "question_id", "is_correct", "confidence", "time_seconds", "answered_at", "mode", "section", "reasoning"])
+    d["answered_at"] = pd.to_datetime(d["answered_at"], utc=True)
+    d["is_first_time"] = ~d.duplicated("question_id")
+    d["course"] = "c"
+    return d
+
+
+def test_insights_basics():
+    import pandas as pd
+    d = _df([
+        (1, 1, False, "confident", 40, "2026-01-01 10:00", "practice", "A", "achei que era X"),
+        (2, 1, True, "guess", 90, "2026-01-01 12:00", "exam", "A", ""),
+        (3, 1, True, "confident", 20, "2026-01-10 12:00", "exam", "A", ""),
+        (4, 2, True, "confident", 200, "2026-01-02 12:00", "exam", "B", ""),
+    ])
+    cons = metrics.consistency(d, 2)
+    q = metrics.review_queue(d, cons)
+    assert q["question_id"].tolist() == [1] and q.loc[0, "confident_wrong"] == 1 and q.loc[0, "lucky"] == 1
+    r = metrics.retention(d)
+    assert r.set_index("label").loc["mesmo dia", "recovered"] == 1.0 and r.set_index("label").loc["7+ dias", "kept"] == 1.0
+    t = metrics.time_vs_accuracy(d)
+    assert t["median_wrong"] == 40 and sum(b["n"] for b in t["bins"]) == 4
+    d.loc[0, "confidence"] = None  # sem Confidence vira null no JSON, nunca NaN
+    w = metrics.reasoning_effect(d)["wrong_with_reasoning"]
+    assert w[0]["question_id"] == 1 and w[0]["confidence"] is None
+    json.dumps(w, allow_nan=False)
+    assert set(metrics.mode_effect(d)["mode"]) == {"practice", "exam"}
+    assert not metrics.section_heatmap(d).empty and not metrics.calibration_trend(d).empty
+
+
+def test_projection_needs_three_and_trends_up():
+    import pandas as pd
+    s = pd.DataFrame({"score": [0.5, 0.6, 0.7], "finished_at": pd.to_datetime(["2026-01-01", "2026-01-08", "2026-01-15"], utc=True)})
+    assert metrics.projection(s.head(2)) is None
+    p = metrics.projection(s)
+    assert round(p["predicted"], 2) == 0.7 and p["eta_days"] == 7 and p["slope_per_week"] > 0.09

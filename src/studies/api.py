@@ -23,7 +23,7 @@ class NewAttempt(BaseModel):
     shuffle: bool = False
     exam_id: int | None = None  # kind=exam
     certification_id: int | None = None  # review e drill
-    filter: str | None = None  # review
+    filter: str | None = None  # review: um de REVIEW_FILTERS ou "priority" (usa n)
     section_id: int | None = None  # drill por Section
     topic: str | None = None  # drill por tema
     include_secondary: bool = False
@@ -97,7 +97,9 @@ def create_app(conn=None, token: str | None = None, cors_origins: list[str] | No
             return {"attempt_id": attempts.start_attempt(c, body.exam_id, body.mode, body.shuffle)}
         if body.certification_id is None:
             raise HTTPException(422, "certification_id é obrigatório")
-        if body.kind == "review":
+        if body.kind == "review" and body.filter == "priority":  # fila de risco do dashboard, na ordem do risco
+            revs = selection.priority_questions(c, body.certification_id, body.n)
+        elif body.kind == "review":
             if body.filter not in selection.REVIEW_FILTERS:
                 raise HTTPException(422, f"filter deve ser um de {list(selection.REVIEW_FILTERS)}")
             revs = selection.review_questions(c, body.certification_id, body.filter)
@@ -202,14 +204,63 @@ def create_app(conn=None, token: str | None = None, cors_origins: list[str] | No
 
     @app.get("/dashboard/{cert_id}", dependencies=secured)
     def dashboard(cert_id: int, kinds: list[str] = Query(default=["exam", "review", "drill"]),
-                  stable_after: int = Query(3, ge=2, le=6), c=Depends(db)):
+                  stable_after: int = Query(3, ge=2, le=6), window: str = Query("all", pattern="^(7d|30d|all)$"),
+                  freq: str = Query("D", pattern="^[DW]$"), roll: int = Query(3, ge=1, le=14), c=Depends(db)):
         t0 = time.perf_counter()
         df_all = metrics.answers_df(c, cert_id)
         scores = metrics.attempt_scores(c, cert_id)
-        df = df_all[df_all["kind"].isin(kinds)]
+        df_kind = df_all[df_all["kind"].isin(kinds)]
+        if df_all.empty:  # sem Answers não há fuso para ancorar a janela
+            start = end = None
+            df = df_kind
+        else:
+            start, end = metrics.window_bounds(window, df_all)
+            df = metrics.in_window(df_kind, start, end)
         cons = metrics.consistency(df_all, stable_after)
         best = metrics.best_attempts(scores)
+        has = len(df) > 0
+        tr = metrics.trend(df_kind, start, end) if len(df_kind) else {"current": None, "previous": None, "delta": None}
+        grans = {g: metrics.by_granularity(df, g) for g in ("course", "exam", "section", "topic")} if has else {}
+        if has:
+            q = metrics.by_granularity(df, "question")
+            grans["question"] = q[q["n"] >= 2].head(30)
+        bw = metrics.best_window(df, freq, min_n=10)
+        pace = metrics.pace(df)
+        tm = df["time_seconds"].dropna() if has else df_all["time_seconds"].iloc[0:0]
+        graph = metrics.topic_graph(c, cert_id, df)
+        topic_acc = metrics.by_granularity(df, "topic").set_index("group") if has else None
+        nodes = graph["nodes"].assign(
+            answers=graph["nodes"]["topic"].map(topic_acc["n"]).fillna(0).astype(int) if has else 0,
+            accuracy=graph["nodes"]["topic"].map(topic_acc["accuracy"]) if has else None)
+        nodes = metrics.topic_impact(nodes)
+        has_cons = not cons.empty
+        insights = {
+            "review_queue": _records(metrics.review_queue(df_all, cons)),
+            "weak_neighbors": metrics.weak_neighbors(nodes, graph["edges"]) if len(graph["edges"]) else {},
+            "calibration_by_section": _records(metrics.calibration_by_section(df)) if has else [],
+            "calibration_trend": _records(metrics.calibration_trend(df, freq)),
+            "time": metrics.time_vs_accuracy(df),
+            "projection": metrics.projection(scores),
+            "mode_effect": _records(metrics.mode_effect(df)) if has else [],
+            "retention": _records(metrics.retention(df_all)) if has_cons else [],
+            "heatmap": _records(metrics.section_heatmap(df_kind)),
+            "reasoning": metrics.reasoning_effect(df) if has else None,
+        }
         return {
+            "insights": insights,
+            "window": None if start is None else {"start": start.isoformat(), "end": end.isoformat()},
+            "trend": tr,
+            "accuracy_new": metrics.accuracy(df[df["is_first_time"]]) if has else None,
+            "accuracy_repeat": metrics.accuracy(df[~df["is_first_time"]]) if has else None,
+            "progression": _records(metrics.progression(df, freq, roll)),
+            "by": {g: _records(t) for g, t in grans.items()},
+            "best_window": None if bw is None else {**bw, "bucket": bw["bucket"].isoformat()},
+            "pace": {"days": _records(pace), "median_seconds": None if tm.empty else float(tm.median()),
+                     "mean_seconds": None if tm.empty else float(tm.mean())},
+            "consistency_by_section": _records(metrics.consistency_summary(cons, "section")),
+            "topics": {"nodes": _records(nodes), "edges": _records(graph["edges"])},
+            "most_wrong": _records(metrics.most_wrong(df)) if has else [],
+            "lucky_guesses": _records(metrics.lucky_guesses(df)) if has else [],
             "answers": len(df), "accuracy": metrics.accuracy(df),
             "readiness": metrics.readiness(scores), "streaks": metrics.streaks(df["is_correct"].tolist()),
             "scores": _records(scores[["attempt_id", "exam_title", "mode", "score", "answered", "skipped", "finished_at"]]),

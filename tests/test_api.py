@@ -114,3 +114,28 @@ def test_dashboard_with_and_without_data(client):
     d = client.get(f"/dashboard/{cert}", headers=H).json()
     assert d["answers"] == 5 and d["streaks"]["longest_correct"] == 2 and d["streaks"]["current"] == 2
     assert len(d["scores"]) == 1 and d["calibration"]
+    assert d["accuracy_new"] is not None and d["progression"] and d["by"]["section"] and d["pace"]["days"]
+    assert d["most_wrong"] and d["consistency_by_section"] and "nodes" in d["topics"]
+    w = client.get(f"/dashboard/{cert}?window=7d&freq=W&roll=2", headers=H).json()
+    assert w["answers"] == 5 and w["window"]["start"] < w["window"]["end"]
+
+
+def test_priority_review_follows_risk_order(client):
+    cert = client.get("/certifications", headers=H).json()[0]["id"]
+    body = {"kind": "review", "certification_id": cert, "filter": "priority", "n": 5}
+    assert client.post("/attempts", json=body, headers=H).status_code == 409  # nada a revisar ainda
+    a = client.post("/attempts", json={"kind": "exam", "exam_id": EXAM}, headers=H).json()["attempt_id"]
+    for pos in range(1, 6):
+        sel = correct_of(client, a, pos)
+        wrong = ["a"] if sel != ["a"] else ["b"]
+        client.post(f"/attempts/{a}/answers", json={"position": pos, "selected": wrong,
+                                                    "confidence": "confident" if pos == 4 else None}, headers=H)
+    client.post(f"/attempts/{a}/finish", headers=H)
+    r = client.post("/attempts", json=body, headers=H)
+    assert r.status_code == 201
+    review = client.get(f"/attempts/{r.json()['attempt_id']}", headers=H).json()
+    assert review["kind"] == "review" and len(review["map"]) == 5
+    first = client.get(f"/attempts/{r.json()['attempt_id']}/questions/1", headers=H).json()
+    # a Question errada com confiança (pos 4) pesa mais e vem primeiro
+    orig = client.get(f"/attempts/{a}/questions/4", headers=H).json()
+    assert first["prompt_html"] == orig["prompt_html"]

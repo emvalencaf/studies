@@ -166,3 +166,12 @@ def prioritize(
         rng.shuffle(rest)
         chosen = (unseen + wrong + rest)[:n]
     return [_latest_revision(conn, q) for q in chosen]
+
+
+def priority_questions(conn: sqlite3.Connection, certification_id: int, n: int = 20) -> list[int]:
+    """Revisões das `n` Questions de maior risco (metrics.review_queue), na ordem do risco, mais arriscada primeiro."""
+    from studies import metrics
+
+    df = metrics.answers_df(conn, certification_id)
+    queue = metrics.review_queue(df, metrics.consistency(df), top=n)
+    return [_latest_revision(conn, q) for q in queue["question_id"]]

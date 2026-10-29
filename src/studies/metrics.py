@@ -3,6 +3,7 @@ import math
 import sqlite3
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 CONFIDENCE_ORDER = ["confident", "educated_guess", "guess"]
@@ -31,7 +32,7 @@ def answers_df(conn: sqlite3.Connection, certification_id: int) -> pd.DataFrame:
                s.name AS section, q.id AS question_id, a.question_revision_id,
                COALESCE((SELECT t.topic FROM revision_topic t WHERE t.question_revision_id = a.question_revision_id
                          AND t.is_primary = 1), 'Sem tema') AS topic,
-               a.is_correct, a.confidence, a.time_seconds, a.answered_at
+               a.is_correct, a.confidence, a.time_seconds, a.answered_at, COALESCE(TRIM(a.reasoning), '') AS reasoning
         FROM answer a
         JOIN attempt at ON at.id = a.attempt_id
         JOIN question_revision r ON r.id = a.question_revision_id
@@ -324,3 +325,173 @@ def readiness(scores: pd.DataFrame, ratio: float = READY_RATIO, n: int = READY_A
     last = s[-n:]
     return {"ready": len(s) >= n and streak >= n, "streak": min(streak, n), "needed": n, "attempts": len(s),
             "recent_mean": sum(last) / len(last) if last else None}
+
+
+# ---- Análises de apoio ao estudo (todas puras sobre o DataFrame de Answers) ----
+
+def review_queue(df: pd.DataFrame, cons: pd.DataFrame, top: int = 20) -> pd.DataFrame:
+    """Questions a revisar primeiro. A pontuação soma: nível de Consistency (errando 3, instável 2), taxa de erro,
+    acertos com chute e erros com Confidence 'confiante' (o erro mais perigoso). Questions estáveis ficam de fora."""
+    cols = ["question_id", "level", "score", "answers", "wrong", "lucky", "confident_wrong", "section", "course"]
+    if df.empty or cons.empty:
+        return pd.DataFrame(columns=cols)
+    g = df.groupby("question_id").agg(answers=("is_correct", "size"), wrong=("is_correct", lambda x: int((~x).sum())))
+    lucky = df[df["is_correct"] & (df["confidence"] == "guess")].groupby("question_id").size()
+    cw = df[~df["is_correct"] & (df["confidence"] == "confident")].groupby("question_id").size()
+    g["lucky"] = lucky.reindex(g.index).fillna(0).astype(int)
+    g["confident_wrong"] = cw.reindex(g.index).fillna(0).astype(int)
+    t = cons.set_index("question_id")[["level", "section", "course"]].join(g, how="inner")
+    t = t[t["level"] != "stable"]
+    level_w = t["level"].map({"failing": 3.0, "unstable": 2.0, "learned": 0.5, "few_data": 1.0}).fillna(0)
+    t["score"] = (level_w + 2 * t["wrong"] / t["answers"] + 1.0 * t["lucky"].clip(upper=3) + 1.5 * t["confident_wrong"].clip(upper=3)).round(2)
+    t = t[(t["wrong"] > 0) | (t["lucky"] > 0)]  # sem erro nem chute não há o que revisar
+    return t.sort_values(["score", "wrong"], ascending=False).head(top).reset_index()[cols]
+
+
+def topic_impact(nodes: pd.DataFrame) -> pd.DataFrame:
+    """Peso de cada tema (parte das Questions) e impacto = Questions principais × taxa de erro.
+    Tema com muita Question e acerto médio pesa mais que tema pequeno com acerto baixo."""
+    n = nodes.copy()
+    if n.empty:
+        return n.assign(share=[], impact=[])
+    n["share"] = n["primary"] / max(int(n["primary"].sum()), 1)
+    n["impact"] = ((1 - n["accuracy"]) * n["primary"]).where(n["answers"] > 0)
+    return n
+
+
+def weak_neighbors(nodes: pd.DataFrame, edges: pd.DataFrame, below: float = 0.7) -> dict[str, list[str]]:
+    """Para cada tema fraco (acerto < below), os vizinhos que também são fracos."""
+    acc = nodes.set_index("topic")["accuracy"]
+    weak = set(acc[(acc < below) & (nodes.set_index("topic")["answers"] > 0)].index)
+    out: dict[str, list[str]] = {t: [] for t in weak}
+    for a, b in edges[["a", "b"]].itertuples(index=False):
+        if a in weak and b in weak:
+            out[a].append(b)
+            out[b].append(a)
+    return {t: v for t, v in out.items() if v}
+
+
+def calibration_by_section(df: pd.DataFrame) -> pd.DataFrame:
+    d = df.assign(level=df["confidence"].fillna(UNMARKED))
+    t = d.groupby(["section", "level"])["is_correct"].agg(n="size", correct="sum").reset_index()
+    t["accuracy"] = t["correct"] / t["n"]
+    return t[["section", "level", "n", "accuracy"]]
+
+
+def calibration_trend(df: pd.DataFrame, freq: str = "W") -> pd.DataFrame:
+    """Por bucket: acerto quando confiante e quando chuta, e quantos erros foram com Confidence 'confiante'."""
+    cols = ["bucket", "confident_n", "confident_accuracy", "guess_n", "guess_accuracy", "overconfident"]
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+    d = df.assign(bucket=df["answered_at"].dt.tz_localize(None).dt.to_period(freq).dt.start_time)
+    rows = []
+    for b, g in d.groupby("bucket"):
+        c, k = g[g["confidence"] == "confident"], g[g["confidence"] == "guess"]
+        rows.append({"bucket": b, "confident_n": len(c), "confident_accuracy": accuracy(c),
+                     "guess_n": len(k), "guess_accuracy": accuracy(k),
+                     "overconfident": None if c.empty else float((~c["is_correct"]).mean())})
+    return pd.DataFrame(rows, columns=cols)
+
+
+TIME_BINS = [(0, 30, "< 30 s"), (30, 60, "30–60 s"), (60, 120, "1–2 min"), (120, 180, "2–3 min"), (180, math.inf, "> 3 min")]
+
+
+def time_vs_accuracy(df: pd.DataFrame, slow_factor: float = 1.5, top: int = 10) -> dict:
+    """Acerto por faixa de tempo, mediana de tempo de certas × erradas e Questions lentas (mediana > fator × mediana geral)."""
+    d = df.dropna(subset=["time_seconds"])
+    if d.empty:
+        return {"bins": [], "median_correct": None, "median_wrong": None, "slow": []}
+    bins = []
+    for lo, hi, label in TIME_BINS:
+        g = d[(d["time_seconds"] >= lo) & (d["time_seconds"] < hi)]
+        bins.append({"label": label, "n": len(g), "accuracy": accuracy(g)})
+    overall = d["time_seconds"].median()
+    q = d.groupby("question_id").agg(answers=("is_correct", "size"), median_seconds=("time_seconds", "median"),
+                                      accuracy=("is_correct", "mean"), section=("section", "last"))
+    slow = q[q["median_seconds"] > slow_factor * overall].sort_values("median_seconds", ascending=False).head(top)
+    return {"bins": bins, "median_all": float(overall),
+            "median_correct": float(d[d["is_correct"]]["time_seconds"].median()) if d["is_correct"].any() else None,
+            "median_wrong": float(d[~d["is_correct"]]["time_seconds"].median()) if (~d["is_correct"]).any() else None,
+            "slow": json_records(slow.reset_index())}
+
+
+def json_records(df: pd.DataFrame) -> list[dict]:
+    import json
+    return json.loads(df.to_json(orient="records", date_format="iso"))
+
+
+def projection(scores: pd.DataFrame, target: float | None = None, last: int = 8) -> dict | None:
+    """Tendência da nota nos últimos Exams (regressão linear no tempo). Faixa = ±1,64 desvio dos resíduos.
+    Precisa de 3+ Exams finalizados."""
+    target = READY_RATIO if target is None else target
+    s = scores.dropna(subset=["score"]).tail(last)
+    if len(s) < 3:
+        return None
+    x = (s["finished_at"] - s["finished_at"].iloc[0]).dt.total_seconds().to_numpy() / 86400
+    y = s["score"].to_numpy()
+    if x.max() == 0:
+        slope, intercept = 0.0, float(y.mean())
+    else:
+        slope, intercept = (float(v) for v in np.polyfit(x, y, 1))
+    fit = intercept + slope * x
+    sd = float(((y - fit) ** 2).sum() / max(len(y) - 2, 1)) ** 0.5
+    predicted = float(min(max(intercept + slope * x[-1], 0), 1))
+    eta = None
+    if predicted < target and slope > 0:
+        eta = math.ceil((target - predicted) / slope)
+    return {"n": len(s), "mean_recent": float(y[-3:].mean()), "predicted": predicted,
+            "low": max(predicted - 1.64 * sd, 0.0), "high": min(predicted + 1.64 * sd, 1.0),
+            "slope_per_week": slope * 7, "eta_days": eta, "target": target}
+
+
+def mode_effect(df: pd.DataFrame) -> pd.DataFrame:
+    """Practice × Exam: acerto geral, acerto nas inéditas e tempo mediano."""
+    rows = []
+    for mode, g in df.groupby("mode"):
+        new = g[g["is_first_time"]]
+        rows.append({"mode": mode, "n": len(g), "accuracy": accuracy(g), "new_n": len(new), "new_accuracy": accuracy(new),
+                     "median_seconds": None if g["time_seconds"].dropna().empty else float(g["time_seconds"].median())})
+    return pd.DataFrame(rows, columns=["mode", "n", "accuracy", "new_n", "new_accuracy", "median_seconds"])
+
+
+RETENTION_BINS = [(0, 1, "mesmo dia"), (1, 3, "1–3 dias"), (3, 7, "3–7 dias"), (7, math.inf, "7+ dias")]
+
+
+def retention(df: pd.DataFrame) -> pd.DataFrame:
+    """Para cada par de Answers consecutivas da mesma Question, o acerto na segunda segundo o intervalo.
+    `kept` = acerto na segunda dado que a primeira foi certa (retenção); `recovered` = idem dado que foi errada."""
+    d = df.sort_values(["answered_at", "answer_id"])
+    prev_ok = d.groupby("question_id")["is_correct"].shift()
+    gap = d.groupby("question_id")["answered_at"].diff().dt.total_seconds() / 86400
+    p = pd.DataFrame({"gap": gap, "prev": prev_ok, "ok": d["is_correct"]}).dropna(subset=["gap", "prev"])
+    rows = []
+    for lo, hi, label in RETENTION_BINS:
+        g = p[(p["gap"] >= lo) & (p["gap"] < hi)]
+        kept, rec = g[g["prev"] == True], g[g["prev"] == False]  # noqa: E712
+        rows.append({"label": label, "n": len(g),
+                     "kept": None if kept.empty else float(kept["ok"].mean()), "kept_n": len(kept),
+                     "recovered": None if rec.empty else float(rec["ok"].mean()), "recovered_n": len(rec)})
+    return pd.DataFrame(rows)
+
+
+def section_heatmap(df: pd.DataFrame, weeks: int = 12) -> pd.DataFrame:
+    """Acerto e volume por Section × semana (últimas `weeks` semanas com atividade)."""
+    if df.empty:
+        return pd.DataFrame(columns=["section", "bucket", "n", "accuracy"])
+    d = df.assign(bucket=df["answered_at"].dt.tz_localize(None).dt.to_period("W").dt.start_time)
+    t = d.groupby(["section", "bucket"])["is_correct"].agg(n="size", correct="sum").reset_index()
+    keep = sorted(t["bucket"].unique())[-weeks:]
+    t = t[t["bucket"].isin(keep)]
+    t["accuracy"] = t["correct"] / t["n"]
+    return t[["section", "bucket", "n", "accuracy"]]
+
+
+def reasoning_effect(df: pd.DataFrame, top: int = 8) -> dict:
+    """Acerto com × sem raciocínio escrito e os erros recentes em que o raciocínio foi escrito
+    (se parecia certo, a Question provavelmente tem uma armadilha)."""
+    has = df["reasoning"].str.len() > 0
+    wrong = df[has & ~df["is_correct"]].sort_values("answered_at", ascending=False).head(top)
+    return {"with_n": int(has.sum()), "with_accuracy": accuracy(df[has]),
+            "without_n": int((~has).sum()), "without_accuracy": accuracy(df[~has]),
+            "wrong_with_reasoning": [{"question_id": int(r.question_id), "section": r.section, "confidence": None if pd.isna(r.confidence) else r.confidence,
+                                      "reasoning": r.reasoning[:240]} for r in wrong.itertuples()]}
