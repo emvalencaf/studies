@@ -92,6 +92,27 @@ def to_display(original_letters: list[str], permutation: list[int] | None) -> li
     return sorted(LETTERS[permutation.index(LETTERS.index(l))] for l in original_letters)
 
 
+MAX_ANSWER_SECONDS = 600  # acima disso o tempo é ruído (app esquecido aberto), não estudo: grava sem tempo
+
+
+def clean_time(time_seconds: float | None) -> float | None:
+    if time_seconds is None or not 0 <= time_seconds <= MAX_ANSWER_SECONDS:
+        return None
+    return time_seconds
+
+
+def discard_slow_times(conn: sqlite3.Connection, apply: bool = False) -> list[tuple[int, float]]:
+    """Answers antigas com tempo acima do teto (ou negativo): devolve (id, segundos) e, com apply, zera o tempo."""
+    rows = conn.execute(
+        "SELECT id, time_seconds FROM answer WHERE time_seconds > ? OR time_seconds < 0", (MAX_ANSWER_SECONDS,)
+    ).fetchall()
+    found = [(r[0], r[1]) for r in rows]
+    if apply and found:
+        conn.execute("UPDATE answer SET time_seconds = NULL WHERE time_seconds > ? OR time_seconds < 0", (MAX_ANSWER_SECONDS,))
+        conn.commit()
+    return found
+
+
 def record_answer(
     conn: sqlite3.Connection,
     attempt_id: int,
@@ -124,7 +145,7 @@ def record_answer(
         "INSERT INTO answer (attempt_id, question_revision_id, selected_json, is_correct, confidence, "
         "reasoning, time_seconds, answered_at) VALUES (?,?,?,?,?,?,?,?)" + on_conflict,
         (attempt_id, question_revision_id, json.dumps(sorted(selected)), int(is_correct),
-         confidence, (reasoning or "").strip() or None, time_seconds, _now()),
+         confidence, (reasoning or "").strip() or None, clean_time(time_seconds), _now()),
     )
     conn.commit()
     return is_correct

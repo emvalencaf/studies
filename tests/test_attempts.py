@@ -139,3 +139,25 @@ def test_exam_mode_allows_changing_answer_until_finish(conn):
     attempts.finish_attempt(conn, a)
     with pytest.raises(ValueError):
         attempts.record_answer(conn, a, rev, wrong)
+
+
+def test_time_above_cap_is_stored_as_null(conn):
+    a = attempts.start_attempt(conn, EXAM)
+    for pos, t in [(1, 45.0), (2, attempts.MAX_ANSWER_SECONDS + 1), (3, -5)]:
+        rev, correct = _correct(conn, a, pos)
+        attempts.record_answer(conn, a, rev, correct, time_seconds=t)
+    got = [r[0] for r in conn.execute("SELECT time_seconds FROM answer ORDER BY id")]
+    assert got == [45.0, None, None]
+
+
+def test_discard_slow_times_dry_run_then_apply(conn):
+    a = attempts.start_attempt(conn, EXAM)
+    for pos in (1, 2):
+        rev, correct = _correct(conn, a, pos)
+        attempts.record_answer(conn, a, rev, correct, time_seconds=30)
+    conn.execute("UPDATE answer SET time_seconds = 5000 WHERE id = (SELECT MIN(id) FROM answer)")
+    assert len(attempts.discard_slow_times(conn)) == 1
+    assert conn.execute("SELECT COUNT(*) FROM answer WHERE time_seconds = 5000").fetchone()[0] == 1  # dry-run não mexe
+    attempts.discard_slow_times(conn, apply=True)
+    assert attempts.discard_slow_times(conn) == []
+    assert conn.execute("SELECT COUNT(*) FROM answer WHERE time_seconds IS NULL").fetchone()[0] == 1

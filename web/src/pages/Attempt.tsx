@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { mmss, useActiveTimer } from '../activeTimer'
 import { joinReasoning, splitReasoning } from '../reasoning'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, post, type AttemptInfo, type Question, type Score } from '../api'
@@ -15,6 +16,19 @@ function useShowScore(mode: 'practice' | 'exam', open: boolean): [boolean, () =>
   const fallback = !(mode === 'exam' && open)
   const [show, setShow] = useState<boolean>(() => {
     try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1' } catch { return fallback }
+  })
+  const toggle = () => setShow((v) => {
+    try { localStorage.setItem(key, v ? '0' : '1') } catch { /* sem armazenamento */ }
+    return !v
+  })
+  return [show, toggle]
+}
+
+// Esconder só esconde o número: o tempo continua sendo medido e gravado.
+function useShowTimer(): [boolean, () => void] {
+  const key = 'studies_show_timer'
+  const [show, setShow] = useState<boolean>(() => {
+    try { return localStorage.getItem(key) !== '0' } catch { return true }
   })
   const toggle = () => setShow((v) => {
     try { localStorage.setItem(key, v ? '0' : '1') } catch { /* sem armazenamento */ }
@@ -68,7 +82,7 @@ export default function AttemptPage() {
   const [elim, setElim] = useState<Record<string, string>>({}) // letra -> por que descartei
   const [editing, setEditing] = useState<string | null>(null) // balão de comentário aberto
   const [mapOpen, setMapOpen] = useState(false) // no celular o mapa fica recolhido para a questão aparecer primeiro
-  const shownAt = useRef(Date.now())
+  const [showTimer, toggleTimer] = useShowTimer()
 
   useEffect(() => {
     if (pos === null && attempt.data) setPos(attempt.data.map.find((m) => !m.answered)?.position ?? 1)
@@ -82,17 +96,19 @@ export default function AttemptPage() {
   useEffect(() => {
     if (!q) return
     const r = splitReasoning(q.reasoning)
-    setPicked(q.selected); setConf(q.confidence ?? ''); setWhy(r.why); setElim(r.elim); setEditing(null); shownAt.current = Date.now()
+    setPicked(q.selected); setConf(q.confidence ?? ''); setWhy(r.why); setElim(r.elim); setEditing(null)
   }, [q])
+
+  const editable = !!q && q.state === 'in_progress' && (q.mode === 'exam' || !q.answered)
+  const timer = useActiveTimer(editable ? `${aid}:${pos}` : null)
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['attempt', aid] }); qc.invalidateQueries({ queryKey: ['question', aid] }); qc.invalidateQueries({ queryKey: ['running'] }) }
   const answer = useMutation({
-    mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: (Date.now() - shownAt.current) / 1000 }),
-    onSuccess: () => { refresh(); if (q?.mode === 'exam' && pos! < q.total) setPos(pos! + 1) },
+    mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: timer.read() }),
+    onSuccess: () => { timer.clear(); refresh(); if (q?.mode === 'exam' && pos! < q.total) setPos(pos! + 1) },
   })
   const finish = useMutation({ mutationFn: () => post(`/attempts/${aid}/finish`), onSuccess: refresh })
 
-  const editable = !!q && q.state === 'in_progress' && (q.mode === 'exam' || !q.answered)
   const toggleElim = (letter: string) => {
     if (!editable) return
     if (letter in elim) { setElim(({ [letter]: _, ...rest }) => rest); setEditing(null); return }
@@ -169,8 +185,17 @@ export default function AttemptPage() {
             <div className="space-y-3"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-24" /><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
           ) : (
             <>
-              <div className="mb-1 text-zinc-500">Q{q.position}/{q.total} · {q.section}
-                {q.topics?.[0] && <span className="text-violet-300"> · #{q.topics[0].topic.toLowerCase().replace(/ /g, '-')}</span>}</div>
+              <div className="mb-1 flex items-start justify-between gap-3 text-zinc-500">
+                <span>Q{q.position}/{q.total} · {q.section}
+                  {q.topics?.[0] && <span className="text-violet-300"> · #{q.topics[0].topic.toLowerCase().replace(/ /g, '-')}</span>}</span>
+                {editable && (
+                  <button onClick={toggleTimer} title="Mostrar ou esconder o tempo desta questão (ele continua sendo medido)" aria-label="Mostrar ou esconder o tempo"
+                    className="shrink-0 rounded px-2 py-1 text-zinc-400 hover:text-white max-lg:py-2">
+                    {showTimer && <span className="mr-1.5 tabular-nums" data-testid="timer">{mmss(timer.seconds)}{timer.paused && <i className="fa-solid fa-pause ml-1.5 text-amber-400" title="Pausado" />}</span>}
+                    <i className={`fa-solid ${showTimer ? 'fa-eye' : 'fa-eye-slash'}`} />
+                  </button>
+                )}
+              </div>
               <div className="mb-5 font-sans text-[15px] leading-relaxed text-zinc-100" dangerouslySetInnerHTML={html(q.prompt_html)} />
               {q.multi && <div className="mb-2 text-sky-400">Escolha {q.choose} opções.</div>}
               <div className="space-y-1.5 font-sans">
