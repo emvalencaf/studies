@@ -55,6 +55,14 @@ export function useActiveTimer(key: string | null) {
   return { seconds, paused, read, clear }
 }
 
+// Attempt finalizado ou abandonado é imutável: os tempos parciais guardados das questões que ficaram sem resposta não servem mais.
+export function clearAttemptTimers(attemptId: number) {
+  try {
+    const prefix = storeKey(`${attemptId}:`)
+    Object.keys(localStorage).filter((k) => k.startsWith(prefix)).forEach((k) => localStorage.removeItem(k))
+  } catch { /* sem armazenamento */ }
+}
+
 export function mmss(sec: number) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
 import { useEffect, useState } from 'react'
-import { mmss, useActiveTimer } from '../activeTimer'
+import { clearAttemptTimers, mmss, useActiveTimer } from '../activeTimer'
 import { joinReasoning, splitReasoning } from '../reasoning'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, post, type AttemptInfo, type Question, type Score } from '../api'
@@ -107,7 +107,7 @@ export default function AttemptPage() {
     mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: timer.read() }),
     onSuccess: () => { timer.clear(); refresh(); if (q?.mode === 'exam' && pos! < q.total) setPos(pos! + 1) },
   })
-  const finish = useMutation({ mutationFn: () => post(`/attempts/${aid}/finish`), onSuccess: refresh })
+  const finish = useMutation({ mutationFn: () => post(`/attempts/${aid}/finish`), onSuccess: () => { clearAttemptTimers(aid); refresh() } })
 
   const toggleElim = (letter: string) => {
     if (!editable) return

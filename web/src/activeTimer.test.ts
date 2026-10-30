@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { IDLE_MS, mmss, useActiveTimer } from './activeTimer'
+import { clearAttemptTimers, IDLE_MS, mmss, useActiveTimer } from './activeTimer'
 
 const setVisibility = (v: 'visible' | 'hidden') => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v })
@@ -59,6 +59,14 @@ describe('cronômetro de tempo ativo', () => {
     const a = renderHook(() => useActiveTimer('1:1'))
     tick(4); a.unmount()
     expect(renderHook(() => useActiveTimer('1:2')).result.current.read()).toBe(0)
+  })
+
+  it('finalizar ou abandonar apaga os tempos parciais só daquele Attempt', () => {
+    for (const k of ['7:1', '7:2', '70:1']) { const h = renderHook(() => useActiveTimer(k)); tick(2); h.unmount() }
+    clearAttemptTimers(7)
+    expect(renderHook(() => useActiveTimer('7:1')).result.current.read()).toBe(0)
+    expect(renderHook(() => useActiveTimer('7:2')).result.current.read()).toBe(0)
+    expect(renderHook(() => useActiveTimer('70:1')).result.current.read()).toBe(2)
   })
 
   it('formata mm:ss', () => { expect(mmss(65)).toBe('1:05'); expect(mmss(0)).toBe('0:00') })

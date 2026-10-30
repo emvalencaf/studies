@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { clearAttemptTimers } from '../activeTimer'
 import { api, post, type Certification, type ExamRow, type Running } from '../api'
 import { ErrorBox, Panel, Skeleton } from '../ui'
 
@@ -24,7 +25,7 @@ export default function Home() {
   })
   const abandon = useMutation({
     mutationFn: (id: number) => post(`/attempts/${id}/abandon`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['running'] }),
+    onSuccess: (_, id) => { clearAttemptTimers(id); qc.invalidateQueries({ queryKey: ['running'] }) },
   })
 
   if (certs.error) return <ErrorBox error={certs.error} retry={() => certs.refetch()} />
