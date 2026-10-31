@@ -104,8 +104,13 @@ export default function AttemptPage() {
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['attempt', aid] }); qc.invalidateQueries({ queryKey: ['question', aid] }); qc.invalidateQueries({ queryKey: ['running'] }) }
   const answer = useMutation({
-    mutationFn: () => post(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: timer.read() }),
-    onSuccess: () => { timer.clear(); refresh(); if (q?.mode === 'exam' && pos! < q.total) setPos(pos! + 1) },
+    mutationFn: () => post<{ score: Score }>(`/attempts/${aid}/answers`, { position: pos, selected: picked, confidence: conf || null, reasoning: joinReasoning(why, elim), time_seconds: timer.read() }),
+    onSuccess: (res) => {
+      timer.clear(); refresh()
+      if (q?.mode !== 'exam') return
+      if (res.score.skipped === 0) finish.mutate() // Exam com tudo respondido encerra sozinho
+      else if (pos! < q.total) setPos(pos! + 1)
+    },
   })
   const finish = useMutation({ mutationFn: () => post(`/attempts/${aid}/finish`), onSuccess: () => { clearAttemptTimers(aid); refresh() } })
 
