@@ -265,6 +265,18 @@ export default function AttemptPage() {
                 </div>
               )}
 
+              {a?.state === 'in_progress' && q.mode === 'exam' && pos === q.total && (
+                <div className="mt-4 rounded-lg border border-violet-700/60 bg-violet-950/30 p-3">
+                  <div className="text-zinc-300">
+                    {a.score.skipped === 0 ? 'Todas as questões respondidas.' : `Faltam ${a.score.skipped} questões sem resposta (contam como erro ao finalizar).`}
+                  </div>
+                  <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-2 w-full rounded-md bg-violet-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50 lg:w-auto">
+                    {finish.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Finalizando…</> : 'Finalizar Attempt'}
+                  </button>
+                  {finish.error && <div className="mt-2 text-rose-400">{finish.error.message}</div>}
+                </div>
+              )}
+
               {q.reveal && q.explanation_html && (
                 <details open className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
                   <summary className="cursor-pointer text-zinc-400">Explicação da Udemy</summary>
