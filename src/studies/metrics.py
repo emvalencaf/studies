@@ -1,7 +1,7 @@
 """Métricas do dashboard. Funções puras sobre o DataFrame de Answers (exceto as que consultam o banco)."""
 import math
 import sqlite3
-from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ GRANULARITIES = {
 
 
 def local_tz():
-    return datetime.now().astimezone().tzinfo
+    return ZoneInfo("America/Sao_Paulo")
 
 
 def answers_df(conn: sqlite3.Connection, certification_id: int) -> pd.DataFrame:

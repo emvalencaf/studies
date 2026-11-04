@@ -182,6 +182,7 @@ def render(conn):
             st.info("Sem Answers na janela.")
         else:
             fig = go.Figure(go.Bar(x=pace["day"], y=pace["questions"], name="Questions", marker_color=pal["s1"],
+                                   text=pace["questions"], textposition="outside",
                                    hovertemplate="%{y} Questions<extra></extra>"))
             st.plotly_chart(style(fig, pal, pct=False, height=260).update_layout(showlegend=False, hovermode="closest"), width="stretch")
             tm = win["time_seconds"].dropna()
@@ -264,6 +265,7 @@ def render(conn):
                 st.caption("Esse tema nunca aparece junto de outro na mesma Question.")
             else:
                 fig = go.Figure(go.Bar(y=[short(t) for t in nb["neighbor"]], x=nb["questions"], orientation="h", marker_color=pal["s1"],
+                                       text=nb["questions"], textposition="outside",
                                        hovertemplate="%{x} Questions citam os dois<extra></extra>"))
                 style(fig, pal, pct=False, height=60 + 30 * len(nb)).update_layout(showlegend=False, hovermode="closest")
                 fig.update_yaxes(autorange="reversed", tickformat=None)
