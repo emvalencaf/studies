@@ -40,9 +40,9 @@ function useShowTimer(): [boolean, () => void] {
 function verdict(s: Score) {
   const p = s.pass
   if (!p) return null
-  if (p.passed) return { tone: 'text-emerald-400', text: `Matematicamente aprovado: ${s.correct} certas, a meta era ${p.needed}.` }
-  if (p.failed) return { tone: 'text-rose-400', text: `Matematicamente reprovado: nem acertando todas as restantes chega a ${p.needed}.` }
-  return { tone: 'text-sky-400', text: `Faltam ${p.still_needed} acertos entre ${p.remaining} Questions restantes (meta ${p.needed}/${s.total}).` }
+  if (p.passed) return { tone: 'text-emerald-600 dark:text-emerald-400', text: `Matematicamente aprovado: ${s.correct} certas, a meta era ${p.needed}.` }
+  if (p.failed) return { tone: 'text-rose-600 dark:text-rose-400', text: `Matematicamente reprovado: nem acertando todas as restantes chega a ${p.needed}.` }
+  return { tone: 'text-sky-600 dark:text-sky-400', text: `Faltam ${p.still_needed} acertos entre ${p.remaining} Questions restantes (meta ${p.needed}/${s.total}).` }
 }
 
 function ScoreBar({ score, open, mode }: { score: Score; open: boolean; mode: 'practice' | 'exam' }) {
@@ -50,20 +50,20 @@ function ScoreBar({ score, open, mode }: { score: Score; open: boolean; mode: 'p
   const p = score.pass
   const v = verdict(score)
   const cell = (label: string, value: string | number, tone = '') => (
-    <div className="shrink-0 border-r border-zinc-800 px-3 last:border-0"><span className="text-zinc-500">{label}</span> <b className={tone}>{value}</b></div>
+    <div className="shrink-0 border-r border-zinc-200 px-3 last:border-0 dark:border-zinc-800"><span className="text-zinc-500">{label}</span> <b className={tone}>{value}</b></div>
   )
   return (
-    <div className="sticky top-0 z-20 flex items-center overflow-x-auto whitespace-nowrap border-b border-zinc-800 bg-zinc-900 py-2">
+    <div className="sticky top-0 z-20 flex items-center overflow-x-auto whitespace-nowrap border-b border-zinc-200 bg-zinc-50 py-2 dark:border-zinc-800 dark:bg-zinc-900">
       {show ? (
         <>
-          {cell('✓', score.correct, 'text-emerald-400')}{cell('✗', score.wrong, 'text-rose-400')}
+          {cell('✓', score.correct, 'text-emerald-600 dark:text-emerald-400')}{cell('✗', score.wrong, 'text-rose-600 dark:text-rose-400')}
           {cell('restam', open ? score.skipped : 0)}
-          {cell('acerto', pct(score.answered ? score.correct / score.answered : null), 'text-violet-300')}
+          {cell('acerto', pct(score.answered ? score.correct / score.answered : null), 'text-violet-700 dark:text-violet-300')}
           {p && <>{cell('meta', `${p.needed}/${score.total}`)}{cell('gap', p.still_needed)}{cell('teto', `${score.correct + p.remaining}/${score.total}`)}</>}
           {v && <div className={`px-3 ${v.tone}`}>▸ {v.text}</div>}
         </>
-      ) : <div className="px-3 text-zinc-600">placar oculto</div>}
-      <button onClick={toggle} title="Mostrar ou esconder o placar" className="ml-auto mr-3 shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:text-white max-lg:py-1.5">
+      ) : <div className="px-3 text-zinc-500 dark:text-zinc-600">placar oculto</div>}
+      <button onClick={toggle} title="Mostrar ou esconder o placar" className="ml-auto mr-3 shrink-0 rounded border border-zinc-300 px-2 py-0.5 text-zinc-500 hover:text-black dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-white max-lg:py-1.5">
         <i className={`fa-solid ${show ? 'fa-eye' : 'fa-eye-slash'}`} /> placar
       </button>
     </div>
@@ -149,16 +149,16 @@ export default function AttemptPage() {
     <div>
       {a ? <ScoreBar key={`${a.id}-${a.state}`} score={a.score} open={a.state === 'in_progress'} mode={a.mode} /> : <Skeleton className="m-2 h-8" />}
       {a && a.state !== 'in_progress' && (
-        <div className="border-b border-zinc-800 bg-zinc-900/40 px-4 py-2 text-zinc-300">
+        <div className="border-b border-zinc-200 bg-zinc-100/60 px-4 py-2 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
           Attempt {a.state === 'finished' ? 'finalizado' : 'abandonado'}: {a.score.correct}/{a.score.answered} certas, {a.score.skipped} puladas.
           <button onClick={() => nav('/')} className="ml-3 underline">voltar ao início</button>
         </div>
       )}
       <div className="lg:flex">
-        <aside className="border-b border-zinc-800 px-4 py-2 lg:sticky lg:top-11 lg:h-[calc(100vh-2.75rem)] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+        <aside className="border-b border-zinc-200 px-4 py-2 dark:border-zinc-800 lg:sticky lg:top-11 lg:h-[calc(100vh-2.75rem)] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
           <button onClick={() => setMapOpen((o) => !o)} aria-expanded={mapOpen}
             className="flex min-h-[2.75rem] w-full items-center justify-between text-zinc-500 lg:pointer-events-none lg:min-h-0">
-            <span>MAPA · {a?.map.length ?? '…'} questões{pos !== null && <span className="text-zinc-400 lg:hidden"> · Q{pos}</span>}</span>
+            <span>MAPA · {a?.map.length ?? '…'} questões{pos !== null && <span className="text-zinc-500 dark:text-zinc-400 lg:hidden"> · Q{pos}</span>}</span>
             <i className={`fa-solid fa-chevron-${mapOpen ? 'up' : 'down'} lg:hidden`} />
           </button>
           <div className={`${mapOpen ? '' : 'hidden'} pb-2 lg:mt-2 lg:block lg:pb-0`}>
@@ -166,7 +166,7 @@ export default function AttemptPage() {
             {a?.map.map((m) => (
               <button key={m.position} onClick={() => { setPos(m.position); setMapOpen(false) }}
                 className={`grid aspect-square place-items-center rounded-sm text-[10px] ${m.position === pos ? 'outline outline-2 outline-violet-400' : ''} ${
-                  m.is_correct === true ? 'bg-emerald-600/70' : m.is_correct === false ? 'bg-rose-600/70' : m.answered ? 'bg-violet-700/60' : 'bg-zinc-800 text-zinc-500'}`}>
+                  m.is_correct === true ? 'bg-emerald-600/70' : m.is_correct === false ? 'bg-rose-600/70' : m.answered ? 'bg-violet-700/60' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>
                 {m.position}
               </button>
             ))}
@@ -175,10 +175,10 @@ export default function AttemptPage() {
             <div><span className="mr-1 inline-block h-2 w-2 bg-emerald-600/70" />certa</div>
             <div><span className="mr-1 inline-block h-2 w-2 bg-rose-600/70" />errada</div>
             <div><span className="mr-1 inline-block h-2 w-2 bg-violet-700/60" />respondida (gabarito oculto)</div>
-            <div><span className="mr-1 inline-block h-2 w-2 bg-zinc-800" />pendente</div>
+            <div><span className="mr-1 inline-block h-2 w-2 bg-zinc-200 dark:bg-zinc-800" />pendente</div>
           </div>
           {a?.state === 'in_progress' && (
-            <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-4 w-full rounded border border-zinc-700 py-2.5 text-zinc-300 hover:bg-zinc-800">
+            <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-4 w-full rounded border border-zinc-300 py-2.5 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
               Finalizar Attempt
             </button>
           )}
@@ -192,17 +192,17 @@ export default function AttemptPage() {
             <>
               <div className="mb-1 flex items-start justify-between gap-3 text-zinc-500">
                 <span>Q{q.position}/{q.total} · {q.section}
-                  {q.topics?.[0] && <span className="text-violet-300"> · #{q.topics[0].topic.toLowerCase().replace(/ /g, '-')}</span>}</span>
+                  {q.topics?.[0] && <span className="text-violet-700 dark:text-violet-300"> · #{q.topics[0].topic.toLowerCase().replace(/ /g, '-')}</span>}</span>
                 {editable && (
                   <button onClick={toggleTimer} title="Mostrar ou esconder o tempo desta questão (ele continua sendo medido)" aria-label="Mostrar ou esconder o tempo"
-                    className="shrink-0 rounded px-2 py-1 text-zinc-400 hover:text-white max-lg:py-2">
-                    {showTimer && <span className="mr-1.5 tabular-nums" data-testid="timer">{mmss(timer.seconds)}{timer.paused && <i className="fa-solid fa-pause ml-1.5 text-amber-400" title="Pausado" />}</span>}
+                    className="shrink-0 rounded px-2 py-1 text-zinc-500 hover:text-black dark:text-zinc-400 dark:hover:text-white max-lg:py-2">
+                    {showTimer && <span className="mr-1.5 tabular-nums" data-testid="timer">{mmss(timer.seconds)}{timer.paused && <i className="fa-solid fa-pause ml-1.5 text-amber-600 dark:text-amber-400" title="Pausado" />}</span>}
                     <i className={`fa-solid ${showTimer ? 'fa-eye' : 'fa-eye-slash'}`} />
                   </button>
                 )}
               </div>
-              <div className="mb-5 font-sans text-[15px] leading-relaxed text-zinc-100" dangerouslySetInnerHTML={html(q.prompt_html)} />
-              {q.multi && <div className="mb-2 text-sky-400">Escolha {q.choose} opções.</div>}
+              <div className="mb-5 font-sans text-[15px] leading-relaxed text-zinc-800 dark:text-zinc-100" dangerouslySetInnerHTML={html(q.prompt_html)} />
+              {q.multi && <div className="mb-2 text-sky-600 dark:text-sky-400">Escolha {q.choose} opções.</div>}
               <div className="space-y-1.5 font-sans">
                 {q.options.map((o, i) => {
                   const sel = picked.includes(o.letter)
@@ -213,30 +213,30 @@ export default function AttemptPage() {
                     <div key={o.letter} className="relative">
                       <button onClick={() => choose(o.letter)} disabled={!editable && !q.reveal}
                         className={`flex w-full gap-3 min-h-[44px] rounded-md border px-3 py-2.5 pr-14 text-left lg:pr-12 transition ${out && !ok ? 'opacity-50' : ''} ${
-                          ok ? 'border-emerald-600 bg-emerald-950/40' : bad ? 'border-rose-600 bg-rose-950/40' : sel ? 'border-violet-500 bg-violet-950/60' : 'border-zinc-800 hover:bg-zinc-900'}`}>
-                        <kbd className="h-fit rounded bg-zinc-800 px-1.5 text-zinc-300">{i + 1}</kbd>
-                        <span className={`text-sm ${out ? 'line-through decoration-zinc-500' : ''}`}><b className="mr-2 text-zinc-400">{o.letter})</b><span dangerouslySetInnerHTML={html(o.html)} />
-                          {ok && <i className="fa-solid fa-check ml-2 text-emerald-400" />}{bad && <i className="fa-solid fa-xmark ml-2 text-rose-400" />}</span>
+                          ok ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' : bad ? 'border-rose-600 bg-rose-50 dark:bg-rose-950/40' : sel ? 'border-violet-500 bg-violet-100 dark:bg-violet-950/60' : 'border-zinc-300 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900'}`}>
+                        <kbd className="h-fit rounded bg-zinc-200 px-1.5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{i + 1}</kbd>
+                        <span className={`text-sm ${out ? 'line-through decoration-zinc-500' : ''}`}><b className="mr-2 text-zinc-500 dark:text-zinc-400">{o.letter})</b><span dangerouslySetInnerHTML={html(o.html)} />
+                          {ok && <i className="fa-solid fa-check ml-2 text-emerald-600 dark:text-emerald-400" />}{bad && <i className="fa-solid fa-xmark ml-2 text-rose-600 dark:text-rose-400" />}</span>
                       </button>
                       {editable && (
                         <button onClick={() => toggleElim(o.letter)} aria-pressed={out} title={out ? 'Desfazer descarte (Shift+' + (i + 1) + ')' : 'Descartar (Shift+' + (i + 1) + ')'} aria-label={`Descartar alternativa ${o.letter}`}
-                          className={`absolute right-1.5 top-1 grid h-9 w-9 place-items-center rounded lg:right-2 lg:top-2 lg:h-7 lg:w-7 ${out ? 'bg-zinc-700 text-amber-300' : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}>
+                          className={`absolute right-1.5 top-1 grid h-9 w-9 place-items-center rounded lg:right-2 lg:top-2 lg:h-7 lg:w-7 ${out ? 'bg-zinc-300 text-amber-700 dark:bg-zinc-700 dark:text-amber-300' : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300'}`}>
                           <i className="fa-solid fa-ban" />
                         </button>
                       )}
                       {out && editing !== o.letter && (
                         <button onClick={() => editable && setEditing(o.letter)} disabled={!editable}
-                          className="ml-10 mt-0.5 block text-left text-xs italic text-amber-300/80">
+                          className="ml-10 mt-0.5 block text-left text-xs italic text-amber-700/80 dark:text-amber-300/80">
                           {elim[o.letter] ? `descartei: ${elim[o.letter]}` : editable ? 'descartada · por quê? (clique)' : 'descartada'}
                         </button>
                       )}
                       {editing === o.letter && editable && (
-                        <div className="absolute right-2 top-full z-10 mt-1 w-72 max-w-[90%] rounded-lg border border-amber-500/60 bg-zinc-900 p-2 shadow-lg">
-                          <span className="absolute -top-1.5 right-3 h-3 w-3 rotate-45 border-l border-t border-amber-500/60 bg-zinc-900" />
+                        <div className="absolute right-2 top-full z-10 mt-1 w-72 max-w-[90%] rounded-lg border border-amber-500/60 bg-white dark:bg-zinc-900 p-2 shadow-lg">
+                          <span className="absolute -top-1.5 right-3 h-3 w-3 rotate-45 border-l border-t border-amber-500/60 bg-white dark:bg-zinc-900" />
                           <input autoFocus value={elim[o.letter] ?? ''} onChange={(e) => setElim((c) => ({ ...c, [o.letter]: e.target.value }))}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setEditing(null) } }} onBlur={() => setEditing(null)}
                             placeholder={`Por que descartou ${o.letter})? (Enter fecha)`}
-                            className="relative w-full rounded border border-zinc-700 bg-zinc-950 p-1.5 font-sans text-sm outline-none focus:border-amber-400" />
+                            className="relative w-full rounded border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950 p-1.5 font-sans text-sm outline-none focus:border-amber-400" />
                         </div>
                       )}
                     </div>
@@ -248,49 +248,49 @@ export default function AttemptPage() {
                 <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(CONF).map(([k, label]) => (
-                      <button key={k} onClick={() => setConf(conf === k ? '' : k)} className={`rounded border px-3 py-2 lg:py-1 ${conf === k ? 'border-violet-500 bg-violet-950 text-violet-200' : 'border-zinc-700 text-zinc-400'}`}>{label}</button>
+                      <button key={k} onClick={() => setConf(conf === k ? '' : k)} className={`rounded border px-3 py-2 lg:py-1 ${conf === k ? 'border-violet-500 bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-200' : 'border-zinc-300 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400'}`}>{label}</button>
                     ))}
                   </div>
                   <textarea value={why} onChange={(e) => setWhy(e.target.value)} rows={2} placeholder="Seu raciocínio (opcional)"
-                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 p-2 font-sans outline-none focus:border-violet-500" />
-                  <div className="flex items-center gap-2 max-lg:sticky max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] max-lg:z-10 max-lg:-mx-4 max-lg:border-t max-lg:border-zinc-800 max-lg:bg-zinc-950/95 max-lg:px-4 max-lg:py-2 max-lg:backdrop-blur">
+                    className="w-full rounded-md border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900 p-2 font-sans outline-none focus:border-violet-500" />
+                  <div className="flex items-center gap-2 max-lg:sticky max-lg:bottom-[calc(3.5rem+env(safe-area-inset-bottom))] max-lg:z-10 max-lg:-mx-4 max-lg:border-t max-lg:border-zinc-200 dark:max-lg:border-zinc-800 max-lg:bg-white/95 dark:max-lg:bg-zinc-950/95 max-lg:px-4 max-lg:py-2 max-lg:backdrop-blur">
                     <button onClick={() => answer.mutate()} disabled={!picked.length || answer.isPending} className="rounded-md bg-violet-600 px-4 py-2.5 font-semibold max-lg:flex-1 text-white disabled:opacity-30">
                       {answer.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Gravando…</> : 'Confirmar ⏎'}
                     </button>
                     <span className="hidden text-zinc-600 lg:inline">teclas 1–9 escolhem · Shift+1–9 descarta · Enter confirma · ←/→ navegam</span>
                   </div>
-                  {answer.error && <div className="text-rose-400">{answer.error.message}</div>}
+                  {answer.error && <div className="text-rose-600 dark:text-rose-400">{answer.error.message}</div>}
                 </div>
               ) : (
                 <div className="mt-4 text-zinc-500">
                   {q.state === 'in_progress' && q.answered && 'Resposta registrada. '}
-                  {q.reveal && q.answered && (q.is_correct ? <span className="text-emerald-400">Correto</span> : <span className="text-rose-400">Errado</span>)}
-                  {q.reveal && !q.answered && <span className="text-amber-400">Sem resposta</span>}
+                  {q.reveal && q.answered && (q.is_correct ? <span className="text-emerald-600 dark:text-emerald-400">Correto</span> : <span className="text-rose-600 dark:text-rose-400">Errado</span>)}
+                  {q.reveal && !q.answered && <span className="text-amber-600 dark:text-amber-400">Sem resposta</span>}
                   {q.confidence && <span> · Confiança: {CONF[q.confidence]}</span>}
                 </div>
               )}
 
               {a?.state === 'in_progress' && q.mode === 'exam' && pos === q.total && (
-                <div className="mt-4 rounded-lg border border-violet-700/60 bg-violet-950/30 p-3">
-                  <div className="text-zinc-300">
+                <div className="mt-4 rounded-lg border border-violet-700/60 bg-violet-50 dark:bg-violet-950/30 p-3">
+                  <div className="text-zinc-700 dark:text-zinc-300">
                     {a.score.skipped === 0 ? 'Todas as questões respondidas.' : `Faltam ${a.score.skipped} questões sem resposta (contam como erro ao finalizar).`}
                   </div>
                   <button onClick={() => finish.mutate()} disabled={finish.isPending} className="mt-2 w-full rounded-md bg-violet-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50 lg:w-auto">
                     {finish.isPending ? <><i className="fa-solid fa-circle-notch fa-spin mr-2" />Finalizando…</> : 'Finalizar Attempt'}
                   </button>
-                  {finish.error && <div className="mt-2 text-rose-400">{finish.error.message}</div>}
+                  {finish.error && <div className="mt-2 text-rose-600 dark:text-rose-400">{finish.error.message}</div>}
                 </div>
               )}
 
               {q.reveal && q.explanation_html && (
-                <details open className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-                  <summary className="cursor-pointer text-zinc-400">Explicação da Udemy</summary>
-                  <div className="mt-2 font-sans text-sm leading-relaxed [&_a]:text-violet-300 [&_a]:underline [&_li]:ml-5 [&_li]:list-disc" dangerouslySetInnerHTML={html(q.explanation_html)} />
+                <details open className="mt-5 rounded-lg border border-zinc-200 bg-zinc-100/60 dark:border-zinc-800 dark:bg-zinc-900/40 p-4">
+                  <summary className="cursor-pointer text-zinc-500 dark:text-zinc-400">Explicação da Udemy</summary>
+                  <div className="mt-2 font-sans text-sm leading-relaxed [&_a]:text-violet-700 dark:[&_a]:text-violet-300 [&_a]:underline [&_li]:ml-5 [&_li]:list-disc" dangerouslySetInnerHTML={html(q.explanation_html)} />
                 </details>
               )}
               <div className="mt-6 grid grid-cols-2 gap-2 lg:flex">
-                <button onClick={() => setPos(pos! - 1)} disabled={pos! <= 1} className="rounded border border-zinc-700 px-3 py-2.5 disabled:opacity-30 lg:py-1.5"><i className="fa-solid fa-arrow-left mr-1" />Anterior</button>
-                <button onClick={() => setPos(pos! + 1)} disabled={pos! >= q.total} className="rounded border border-zinc-700 px-3 py-2.5 disabled:opacity-30 lg:py-1.5">Próxima<i className="fa-solid fa-arrow-right ml-1" /></button>
+                <button onClick={() => setPos(pos! - 1)} disabled={pos! <= 1} className="rounded border border-zinc-300 px-3 py-2.5 disabled:opacity-30 dark:border-zinc-700 lg:py-1.5"><i className="fa-solid fa-arrow-left mr-1" />Anterior</button>
+                <button onClick={() => setPos(pos! + 1)} disabled={pos! >= q.total} className="rounded border border-zinc-300 px-3 py-2.5 disabled:opacity-30 dark:border-zinc-700 lg:py-1.5">Próxima<i className="fa-solid fa-arrow-right ml-1" /></button>
               </div>
             </>
           )}

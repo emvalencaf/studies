@@ -7,8 +7,15 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <title>Studies</title>
+    <script>
+      // Lido de forma síncrona antes do primeiro paint para não "flashear" o tema errado.
+      try {
+        var t = localStorage.getItem('theme')
+        if (t === 'dark') document.documentElement.classList.add('dark')
+      } catch (e) { /* sem armazenamento */ }
+    </script>
   </head>
-  <body class="bg-zinc-950">
+  <body class="bg-white dark:bg-zinc-950">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
