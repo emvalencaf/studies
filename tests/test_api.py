@@ -85,6 +85,33 @@ def test_score_has_pass_math_for_exams_only(client):
     assert client.get(f"/attempts/{d.json()['attempt_id']}", headers=H).json()["score"]["pass"] is None
 
 
+def test_sections_and_topics_endpoints(client):
+    cert = client.get("/certifications", headers=H).json()[0]["id"]
+    secs = client.get(f"/certifications/{cert}/sections", headers=H).json()
+    assert secs and all({"id", "name"} <= set(s) for s in secs)
+    tops = client.get(f"/certifications/{cert}/topics", headers=H).json()
+    from studies import selection
+    assert tops == selection.topic_names(client.conn, cert)
+
+
+def test_drill_with_multiple_sections_and_topics(client):
+    cert_row = client.conn.execute("SELECT id FROM certification LIMIT 1").fetchone()
+    cert = cert_row[0]
+    secs = client.get(f"/certifications/{cert}/sections", headers=H).json()
+    sec_a, sec_b = secs[0]["id"], secs[1]["id"]
+    topic = "Bedrock: Guardrails"
+    # n bem acima do pool: prioritize() devolve o pool inteiro, sem corte aleatório (evita teste flaky)
+    body = {"kind": "drill", "certification_id": cert, "section_ids": [sec_a, sec_b], "topics": [topic], "n": 100000}
+    r = client.post("/attempts", json=body, headers=H)
+    assert r.status_code == 201
+    attempt_id = r.json()["attempt_id"]
+    from studies import attempts
+    rows = attempts.attempt_questions(client.conn, attempt_id)
+    section_ids = {row["section_id"] for row in rows}
+    # confirma união (OR), não interseção: alguma Question não pertence a sec_a/sec_b mas bate pelo tema
+    assert section_ids - {sec_a, sec_b}
+
+
 def test_shuffled_answers_are_in_displayed_letters(client):
     a = client.post("/attempts", json={"kind": "exam", "exam_id": EXAM, "shuffle": True}, headers=H).json()["attempt_id"]
     for pos in (1, 2, 3):

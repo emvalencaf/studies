@@ -115,6 +115,58 @@ def topic_names(conn: sqlite3.Connection, certification_id: int) -> list[str]:
     return [r[0] for r in rows]
 
 
+def multi_pool(
+    conn: sqlite3.Connection,
+    certification_id: int,
+    section_ids: list[int] | None = None,
+    topics: list[str] | None = None,
+    include_secondary: bool = False,
+) -> list[int]:
+    """Question ids da Certification cuja revisão mais recente está em qualquer uma das
+    Sections OU tem qualquer um dos temas (união, sem duplicar)."""
+    section_ids = section_ids or []
+    topics = topics or []
+    if not section_ids and not topics:
+        return []
+    clauses, params = [], [certification_id]
+    if section_ids:
+        placeholders = ",".join("?" * len(section_ids))
+        clauses.append(
+            f"(SELECT section_id FROM question_revision r WHERE r.id = {_LATEST.format(q='q.id')}) IN ({placeholders})"
+        )
+        params += section_ids
+    if topics:
+        placeholders = ",".join("?" * len(topics))
+        clauses.append(
+            f"EXISTS (SELECT 1 FROM revision_topic t WHERE t.question_revision_id = {_LATEST.format(q='q.id')} "
+            f"AND t.topic IN ({placeholders}) AND (t.is_primary = 1 OR ?))"
+        )
+        params += topics + [int(include_secondary)]
+    rows = conn.execute(
+        f"""
+        SELECT q.id FROM question q JOIN course c ON c.id = q.course_id
+        WHERE c.certification_id = ? AND ({" OR ".join(clauses)})
+        ORDER BY q.id
+        """,
+        params,
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def drill_questions_multi(
+    conn: sqlite3.Connection,
+    certification_id: int,
+    section_ids: list[int] | None,
+    topics: list[str] | None,
+    n: int,
+    pure_random: bool = False,
+    include_secondary: bool = False,
+    rng: random.Random | None = None,
+) -> list[int]:
+    pool = multi_pool(conn, certification_id, section_ids, topics, include_secondary)
+    return prioritize(conn, certification_id, pool, n, pure_random, rng)
+
+
 def drill_questions(
     conn: sqlite3.Connection,
     certification_id: int,

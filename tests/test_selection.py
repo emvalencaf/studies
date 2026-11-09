@@ -120,6 +120,43 @@ def test_drill_priority_unseen_then_wrong_then_rest(conn):
     assert set(pure) == set(pool_revs)
 
 
+def test_multi_pool_unions_sections_and_topics_without_duplicates(conn):
+    cert = _cert(conn)
+    sec_a, sec_b = _section_id(conn, "Safety"), _section_id(conn, "Implementation")
+    pool = selection.multi_pool(conn, cert, section_ids=[sec_a, sec_b])
+    expected = set(selection.section_pool(conn, cert, sec_a)) | set(selection.section_pool(conn, cert, sec_b))
+    assert set(pool) == expected
+    assert len(pool) == len(set(pool))
+
+
+def test_multi_pool_unions_section_and_topic(conn):
+    cert = _cert(conn)
+    sec = _section_id(conn, "Safety")
+    topic = "Bedrock: Guardrails"
+    pool = selection.multi_pool(conn, cert, section_ids=[sec], topics=[topic])
+    expected = set(selection.section_pool(conn, cert, sec)) | set(selection.topic_pool(conn, cert, topic))
+    assert set(pool) == expected
+    # união, não interseção: deve existir Question só pelo tema, fora da Section
+    assert expected - set(selection.section_pool(conn, cert, sec))
+
+
+def test_multi_pool_empty_when_nothing_selected(conn):
+    cert = _cert(conn)
+    assert selection.multi_pool(conn, cert, [], []) == []
+
+
+def test_drill_questions_multi_applies_prioritize_and_caps_at_n(conn):
+    cert = _cert(conn)
+    sec_a, sec_b = _section_id(conn, "Safety"), _section_id(conn, "Implementation")
+    pool = selection.multi_pool(conn, cert, section_ids=[sec_a, sec_b])
+    n = 10
+    revs = selection.drill_questions_multi(conn, cert, [sec_a, sec_b], None, n, rng=random.Random(0))
+    assert len(revs) == n and len(set(revs)) == n
+    picked_questions = {conn.execute(
+        "SELECT question_id FROM question_revision WHERE id=?", (r,)).fetchone()[0] for r in revs}
+    assert picked_questions <= set(pool)
+
+
 def test_drill_by_topic_primary_vs_secondary(conn):
     cert = _cert(conn)
     topic = "Bedrock: Guardrails"

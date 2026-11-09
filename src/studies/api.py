@@ -24,8 +24,10 @@ class NewAttempt(BaseModel):
     exam_id: int | None = None  # kind=exam
     certification_id: int | None = None  # review e drill
     filter: str | None = None  # review: um de REVIEW_FILTERS ou "priority" (usa n)
-    section_id: int | None = None  # drill por Section
-    topic: str | None = None  # drill por tema
+    section_id: int | None = None  # drill por 1 Section (compat)
+    topic: str | None = None  # drill por 1 tema (compat)
+    section_ids: list[int] | None = None  # drill por múltiplas Sections e/ou temas (união)
+    topics: list[str] | None = None
     include_secondary: bool = False
     n: int = 20
     pure_random: bool = False
@@ -84,6 +86,15 @@ def create_app(conn=None, token: str | None = None, cors_origins: list[str] | No
             "WHERE c.certification_id = ? ORDER BY c.slug, e.position", (cert_id,)).fetchall()
         return [dict(r) for r in rows]
 
+    @app.get("/certifications/{cert_id}/sections", dependencies=secured)
+    def sections(cert_id: int, c=Depends(db)):
+        rows = c.execute("SELECT id, name FROM section WHERE certification_id = ? ORDER BY name", (cert_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    @app.get("/certifications/{cert_id}/topics", dependencies=secured)
+    def topics(cert_id: int, c=Depends(db)):
+        return selection.topic_names(c, cert_id)
+
     @app.get("/attempts", dependencies=secured)
     def running(c=Depends(db)):
         return [{k: r[k] for k in ("id", "kind", "mode", "started_at", "answered", "total", "course_slug", "exam_title")}
@@ -103,13 +114,16 @@ def create_app(conn=None, token: str | None = None, cors_origins: list[str] | No
             if body.filter not in selection.REVIEW_FILTERS:
                 raise HTTPException(422, f"filter deve ser um de {list(selection.REVIEW_FILTERS)}")
             revs = selection.review_questions(c, body.certification_id, body.filter)
+        elif body.kind == "drill" and (body.section_ids or body.topics):
+            revs = selection.drill_questions_multi(c, body.certification_id, body.section_ids, body.topics,
+                                                   body.n, body.pure_random, body.include_secondary)
         elif body.kind == "drill" and body.section_id is not None:
             revs = selection.drill_questions(c, body.certification_id, body.section_id, body.n, body.pure_random)
         elif body.kind == "drill" and body.topic:
             revs = selection.drill_questions_by_topic(c, body.certification_id, body.topic, body.n, body.pure_random,
                                                       body.include_secondary)
         else:
-            raise HTTPException(422, "kind inválido, ou drill sem section_id nem topic")
+            raise HTTPException(422, "kind inválido, ou drill sem section_id/section_ids nem topic/topics")
         if not revs:
             raise HTTPException(409, "Nenhuma Question com esse filtro")
         return {"attempt_id": attempts.create_attempt(c, revs, body.kind, body.mode, body.shuffle)}

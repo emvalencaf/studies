@@ -38,6 +38,7 @@ export type Pass = { needed: number; remaining: number; accuracy: number | null;
 export type Score = { total: number; correct: number; wrong: number; skipped: number; answered: number; pass: Pass | null }
 export type Certification = { id: number; name: string }
 export type ExamRow = { id: number; course: string; title: string }
+export type Section = { id: number; name: string }
 export type Running = { id: number; kind: string; mode: string; started_at: string; answered: number; total: number; course_slug: string | null; exam_title: string | null }
 export type AttemptInfo = {
   id: number; kind: string; mode: 'practice' | 'exam'; state: 'in_progress' | 'finished' | 'abandoned'
